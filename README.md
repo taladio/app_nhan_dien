@@ -1,17 +1,110 @@
-# app_nhan_dien
+# Ứng dụng nhận diện trang phục
 
-A new Flutter project.
+Ứng dụng Flutter chọn hoặc chụp ảnh, gửi ảnh đến FastAPI/YOLO, hiển thị kết quả
+tiếng Việt và vẽ bounding box đúng theo `BoxFit.contain`. Project hỗ trợ Android,
+Windows và Web; cấu hình iOS cho chọn ảnh/camera cũng đã được bổ sung.
 
-## Getting Started
+## Chuẩn bị
 
-This project is a starting point for a Flutter application.
+Từ thư mục gốc project:
 
-A few resources to get you started if this is your first Flutter project:
+```powershell
+flutter pub get
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Khi build Windows lần đầu, Windows có thể yêu cầu bật **Developer Mode** để các
+Flutter plugin tạo symbolic link. Có thể mở phần cài đặt bằng:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```powershell
+start ms-settings:developers
+```
+
+## Chạy Backend
+
+```powershell
+cd backend
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Kiểm tra:
+
+- <http://127.0.0.1:8000/health>
+- <http://127.0.0.1:8000/docs>
+
+Chi tiết cài đặt Backend nằm trong [backend/README.md](backend/README.md).
+
+## Cấu hình API_BASE_URL
+
+Ứng dụng chỉ quản lý URL tại `lib/config/api_config.dart` và ưu tiên giá trị
+compile-time:
+
+```dart
+const String.fromEnvironment('API_BASE_URL')
+```
+
+Khi không truyền `API_BASE_URL`, mặc định là:
+
+```text
+Flutter Windows/Web: http://127.0.0.1:8000
+Android Emulator:    http://10.0.2.2:8000
+```
+
+Endpoint cuối cùng được chuẩn hóa thành `{baseUrl}/api/v1/detect`, không bị lặp
+dấu `/`.
+
+## Chạy Flutter
+
+### Windows
+
+```powershell
+flutter run -d windows
+```
+
+### Web
+
+```powershell
+flutter run -d chrome
+```
+
+Backend Phần 3 đã bật CORS để Flutter Web gọi API.
+
+### Android Emulator
+
+```powershell
+flutter run -d android
+```
+
+Android Emulator phải dùng `10.0.2.2`, không dùng `127.0.0.1`, vì localhost bên
+trong emulator trỏ về chính emulator.
+
+### Điện thoại Android thật
+
+Tìm IPv4 của máy tính bằng `ipconfig`, sau đó chạy, ví dụ:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://IP_MAY_TINH:8000
+```
+
+Điện thoại và máy tính phải cùng Wi-Fi. Uvicorn phải chạy với
+`--host 0.0.0.0`; nếu không kết nối được, cho phép Python/Uvicorn qua Windows
+Firewall trên mạng Private và kiểm tra TCP port 8000.
+
+## Kiểm thử
+
+```powershell
+flutter pub get
+dart format .
+flutter analyze
+flutter test
+```
+
+Widget test dùng service giả, không yêu cầu Backend đang chạy. Test model kiểm tra
+JSON thiếu `summary`/`bbox_normalized`; test painter kiểm tra đủ trường hợp ảnh
+cùng tỉ lệ và có letterbox trên/dưới hoặc trái/phải.
+
+## Ghi chú bảo mật
+
+Android/iOS hiện cho phép HTTP để kết nối FastAPI trong mạng local khi phát triển.
+Bản production phải dùng HTTPS và nên thu hẹp lại cấu hình cleartext/ATS thay vì
+cho phép HTTP rộng rãi.
