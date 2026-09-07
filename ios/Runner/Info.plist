@@ -33,7 +33,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Ứng dụng cần camera để chụp ảnh trang phục cần nhận diện.</string>
+	<string>Ứng dụng cần camera để chụp ảnh và nhận diện trang phục theo thời gian thực.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ứng dụng cần truy cập thư viện ảnh để chọn ảnh trang phục.</string>
 	<key>UIApplicationSceneManifest</key>

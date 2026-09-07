@@ -1,8 +1,9 @@
 # Ứng dụng nhận diện trang phục
 
 Ứng dụng Flutter chọn hoặc chụp ảnh, gửi ảnh đến FastAPI/YOLO, hiển thị kết quả
-tiếng Việt và vẽ bounding box đúng theo `BoxFit.contain`. Project hỗ trợ Android,
-Windows và Web; cấu hình iOS cho chọn ảnh/camera cũng đã được bổ sung.
+tiếng Việt và vẽ bounding box đúng theo `BoxFit.contain`. Ứng dụng còn có chế độ
+camera realtime trên Android/iOS. Project hỗ trợ Android, Windows và Web; cấu
+hình iOS cho chọn ảnh/camera cũng đã được bổ sung.
 
 ## Chuẩn bị
 
@@ -89,6 +90,19 @@ flutter run --dart-define=API_BASE_URL=http://IP_MAY_TINH:8000
 Điện thoại và máy tính phải cùng Wi-Fi. Uvicorn phải chạy với
 `--host 0.0.0.0`; nếu không kết nối được, cho phép Python/Uvicorn qua Windows
 Firewall trên mạng Private và kiểm tra TCP port 8000.
+
+## Nhận diện camera realtime
+
+Trên Android hoặc iOS, chọn **Nhận diện realtime**, cấp quyền camera rồi bấm
+**Bắt đầu realtime**. Ứng dụng giữ camera preview hoạt động, lấy tối đa khoảng
+1–2 khung hình mỗi giây và chỉ gửi frame mới khi request YOLO trước đó đã hoàn
+tất. Cách này tránh gửi chồng request và phù hợp với backend đang chạy suy luận
+tuần tự trên CPU/GPU.
+
+Chế độ realtime không thu âm và không lưu tệp video. Nếu đổi ứng dụng, khóa màn
+hình hoặc rời khỏi màn hình realtime, camera sẽ được dừng và giải phóng. Windows
+và Flutter Web vẫn dùng luồng chọn ảnh hiện tại vì plugin camera chính thức đang
+hỗ trợ image stream realtime trên Android/iOS trong project này.
 
 ## Kiểm thử
 

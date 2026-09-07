@@ -6,6 +6,7 @@ import '../models/detection_result.dart';
 import '../services/fashion_api_service.dart';
 import '../widgets/detection_image_view.dart';
 import '../widgets/detection_result_card.dart';
+import 'realtime_detection_screen.dart';
 
 enum DetectionScreenStatus {
   noImage,
@@ -65,6 +66,11 @@ class _ClothingDetectionScreenState extends State<ClothingDetectionScreen> {
     return defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
   }
+
+  bool get _realtimeCameraSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   void initState() {
@@ -320,6 +326,20 @@ class _ClothingDetectionScreenState extends State<ClothingDetectionScreen> {
             icon: const Icon(Icons.photo_camera_outlined),
             label: const Text('Chụp ảnh'),
           ),
+        FilledButton.tonalIcon(
+          key: const Key('realtime_button'),
+          onPressed: _isLoading || !_realtimeCameraSupported
+              ? null
+              : () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RealtimeDetectionScreen(),
+                    ),
+                  );
+                },
+          icon: const Icon(Icons.videocam_outlined),
+          label: const Text('Nhận diện realtime'),
+        ),
       ],
     );
   }
