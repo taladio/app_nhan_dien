@@ -13,6 +13,16 @@ Từ thư mục gốc project:
 flutter pub get
 ```
 
+## Đăng ký và đăng nhập
+
+Ứng dụng khởi tạo Firebase trước khi hiển thị giao diện và dùng Email/Password
+Authentication. Người dùng chưa đăng nhập sẽ thấy trang đăng nhập; phiên đã lưu
+sẽ được khôi phục tự động. Khi đăng ký thành công, hồ sơ được tạo tại
+`users/{uid}` trong Cloud Firestore với họ tên, email và thời gian từ máy chủ.
+
+Tại màn hình nhận diện, nút đăng xuất nằm ở góc phải AppBar. Chức năng quên mật
+khẩu gửi email đặt lại mật khẩu tới địa chỉ người dùng nhập.
+
 Khi build Windows lần đầu, Windows có thể yêu cầu bật **Developer Mode** để các
 Flutter plugin tạo symbolic link. Có thể mở phần cài đặt bằng:
 

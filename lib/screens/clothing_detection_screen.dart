@@ -34,10 +34,12 @@ class ClothingDetectionScreen extends StatefulWidget {
     super.key,
     this.service,
     this.imageSelectionCallback,
+    this.onSignOut,
   });
 
   final FashionDetectionService? service;
   final ImageSelectionCallback? imageSelectionCallback;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<ClothingDetectionScreen> createState() =>
@@ -55,6 +57,7 @@ class _ClothingDetectionScreenState extends State<ClothingDetectionScreen> {
   String? _errorMessage;
   double _confidence = 0.25;
   bool _showBoundingBoxes = true;
+  bool _isSigningOut = false;
   int? _highlightedIndex;
 
   bool get _isLoading => _status == DetectionScreenStatus.loading;
@@ -188,11 +191,50 @@ class _ClothingDetectionScreenState extends State<ClothingDetectionScreen> {
     }
   }
 
+  Future<void> _signOut() async {
+    final onSignOut = widget.onSignOut;
+    if (onSignOut == null || _isSigningOut) {
+      return;
+    }
+    setState(() => _isSigningOut = true);
+    try {
+      await onSignOut();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể đăng xuất. Vui lòng thử lại.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedImage = _selectedImage;
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhận diện trang phục')),
+      appBar: AppBar(
+        title: const Text('Nhận diện trang phục'),
+        actions: <Widget>[
+          if (widget.onSignOut != null)
+            IconButton(
+              key: const Key('sign_out_button'),
+              tooltip: 'Đăng xuất',
+              onPressed: _isSigningOut ? null : _signOut,
+              icon: _isSigningOut
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.logout),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
