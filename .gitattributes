@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto-detect text files and keep repository line endings consistent across OSes.
+* text=auto eol=lf
+
+# Windows command scripts should retain native Windows line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf

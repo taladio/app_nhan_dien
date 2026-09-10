@@ -20,6 +20,14 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
+BACKEND_DIR = Path(__file__).resolve().parent
+PIL_IMAGE_OPEN = Image.open
+
+# Giữ cấu hình Ultralytics trong thư mục backend để server vẫn khởi động khi
+# thư mục AppData của tài khoản Windows không cho phép đọc/ghi. Ultralytics tự
+# nối thêm thư mục con "Ultralytics" vào đường dẫn này.
+os.environ.setdefault("YOLO_CONFIG_DIR", str(BACKEND_DIR))
+
 try:
     import torch
 except Exception:  # pragma: no cover - chỉ xảy ra khi môi trường cài đặt bị lỗi
@@ -32,7 +40,6 @@ except Exception:  # pragma: no cover - được phản ánh qua /health
 
 
 LOGGER = logging.getLogger(__name__)
-BACKEND_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BACKEND_DIR / "models" / "best.pt"
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
@@ -328,7 +335,9 @@ def validate_and_decode_image(data: bytes, content_type: str | None) -> np.ndarr
         )
 
     try:
-        with Image.open(BytesIO(data)) as image_probe:
+        # Dùng hàm gốc của Pillow vì Ultralytics thay Image.open bằng wrapper
+        # tự cài pi-heif, khiến ảnh hỏng biến thành lỗi phụ thuộc thay vì HTTP 400.
+        with PIL_IMAGE_OPEN(BytesIO(data)) as image_probe:
             detected_format = (image_probe.format or "").upper()
             image_probe.verify()
     except (UnidentifiedImageError, OSError, ValueError):

@@ -52,6 +52,7 @@ backend/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/.pytest_cache/
+backend/Ultralytics/
 backend/test_images/*
 !backend/test_images/.gitkeep
 backend/runs/
