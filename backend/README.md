@@ -1,143 +1,115 @@
-# Backend Fashion AI (FastAPI + YOLO)
+# Backend YOLO + đánh giá trang phục + MediaPipe Pose
 
-Backend nhận ảnh từ Flutter, chạy `best.pt` bằng Ultralytics YOLO và chỉ trả về tám
-nhóm của ứng dụng: `tshirt`, `shirt`, `jacket`, `pants`, `shorts`, `skirt`,
-`dress`, `shoes`.
+FastAPI dùng một instance Ultralytics YOLO được tải khi module khởi động. Model
+21 lớp (nếu có) được chuẩn hóa về tám nhóm `tshirt`, `shirt`, `jacket`, `pants`,
+`shorts`, `skirt`, `dress`, `shoes`. Endpoint mới dùng metadata nhận diện để gọi
+OpenAI Responses API với Structured Outputs hoặc fallback cục bộ.
+WebSocket Pose nhận JPEG trong RAM, chạy Pose Landmarker ở chế độ `VIDEO` và trả
+landmark/anchor cho màn thử đồ ảo. Frame không được ghi ra ổ đĩa.
 
-## 1. Yêu cầu
+## Cài đặt
 
-- Windows và Python **3.10 hoặc 3.11** (khuyến nghị Python 3.11).
-- File model thật tại `backend/models/best.pt`.
-- Máy có NVIDIA GPU sẽ tự dùng CUDA nếu bản PyTorch đang cài nhận được GPU;
-  nếu không backend tự dùng CPU.
-
-Backend vẫn khởi động nếu thiếu hoặc không tải được model. Khi đó `/health` có
-`status: "degraded"`, `model_loaded: false`; endpoint nhận diện trả HTTP 503.
-
-## 2. Tạo môi trường và cài thư viện
-
-Chạy từ thư mục gốc `app_nhan_dien`.
-
-### Windows PowerShell
+Từ thư mục gốc repository:
 
 ```powershell
-py -3.11 -m venv backend\.venv
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+python -m venv backend\.venv
 .\backend\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 python -m pip install -r backend\requirements.txt
+Copy-Item backend\.env.example backend\.env
+python backend\scripts\download_pose_model.py
 ```
 
-### Windows CMD
+Môi trường đã kiểm thử dùng Python 3.13.7 và MediaPipe 1.0.1. Đặt model YOLO tại
+`backend/models/best.pt`. Có thể dùng `MODEL_PATH` để trỏ tới vị trí khác; đường
+dẫn tương đối được tính từ working directory của tiến trình. Script tải model
+Pose Lite chính thức vào `backend/models/pose_landmarker_lite.task`; backend
+không tự tải model khi khởi động. Có thể dùng `POSE_MODEL_PATH` để thay đổi
+đường dẫn.
 
-```bat
-py -3.11 -m venv backend\.venv
-backend\.venv\Scripts\activate.bat
-python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.txt
+`backend/.env`:
+
+```dotenv
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-luna
+OPENAI_TIMEOUT_SECONDS=30
 ```
 
-Nếu lệnh `py` không tồn tại nhưng `python --version` đúng 3.10/3.11, thay
-`py -3.11` bằng `python`.
+Không có key hoặc lỗi 429/quota/timeout/network/model/schema/refusal sẽ tự dùng
+`rule_based_outfit_service.py` và trả `source: fallback`. Không log API key.
+ChatGPT Plus không bao gồm credit OpenAI API.
 
-## 3. Đặt model
+## Chạy
 
-Sao chép đúng file model đã huấn luyện vào:
-
-```text
-backend/models/best.pt
-```
-
-Không đổi nội dung hoặc tạo file `.pt` giả. Đường dẫn mặc định được tính từ
-`backend/main.py`, nên không phụ thuộc thư mục đứng khi chạy Uvicorn.
-
-Nếu cần dùng model ở vị trí khác, có thể đặt biến môi trường trước khi chạy:
+Từ thư mục `backend`:
 
 ```powershell
-$env:MODEL_PATH = "backend\models\best.pt"
-```
-
-Đường dẫn tương đối trong `MODEL_PATH` được tính từ thư mục hiện tại của terminal.
-
-## 4. Chạy server
-
-Từ thư mục gốc project:
-
-```powershell
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Hoặc từ thư mục `backend`:
-
-```powershell
-cd backend
+.\.venv\Scripts\Activate.ps1
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-`0.0.0.0` cho phép Android Emulator và thiết bị trong cùng mạng gọi tới máy tính.
-Không dùng `0.0.0.0` làm URL phía Flutter; dùng một trong các URL bên dưới.
-
-## 5. Kiểm tra API
-
-Mở trên máy tính:
-
-- Trạng thái: <http://127.0.0.1:8000/health>
-- Swagger UI: <http://127.0.0.1:8000/docs>
-- Danh sách lớp: <http://127.0.0.1:8000/api/v1/classes>
-
-Trong Swagger, mở `POST /api/v1/detect`, chọn **Try it out**, đặt
-`confidence`/`iou`, chọn ảnh ở trường `file`, rồi bấm **Execute**.
-
-Ví dụ với `curl.exe` trên Windows PowerShell hoặc CMD:
+Hoặc từ thư mục gốc:
 
 ```powershell
-curl.exe -X POST "http://127.0.0.1:8000/api/v1/detect?confidence=0.25&iou=0.45" -H "accept: application/json" -F "file=@C:\duong-dan\outfit.jpg;type=image/jpeg"
+.\backend\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Ảnh hợp lệ là JPEG, PNG hoặc WebP, tối đa 10 MB. Tên trường multipart bắt buộc là
-`file`. Không phát hiện được quần áo vẫn là kết quả HTTP 200 với
-`detection_count: 0`.
+Các route:
 
-## 6. URL dùng trong Flutter
+- `GET /health`: trạng thái model, device và đường dẫn model.
+- `GET /api/v1/classes`: lớp model và kết quả chuẩn hóa.
+- `POST /api/v1/detect`: endpoint YOLO cũ, nhận JPEG/PNG/WebP.
+- `POST /api/v1/outfit/analyze`: multipart YOLO + đánh giá, chỉ nhận JPEG/PNG.
+- `WS /api/v1/pose/ws`: binary JPEG → MediaPipe Pose landmark/anchor.
+- `GET /docs`: Swagger UI để thử cả hai endpoint.
+
+Endpoint phân tích nhận `file`, `height_cm`, `weight_kg`, `season`,
+`temperature_c`, `style`, `occasion`, `confidence`. Ảnh tối đa 10 MB và chỉ tồn
+tại trong request. OpenAI chỉ nhận loại đồ, màu, confidence, profile và context;
+không nhận bytes/base64/path/URL ảnh.
+
+WebSocket yêu cầu JSON config đầu tiên (`camera`, `mirrored`,
+`rotation_degrees`, `frame_width`, `frame_height`), sau đó chỉ nhận binary JPEG
+tối đa 3 MB. Model có `num_poses=1`; các ngưỡng mặc định là 0.5 và có thể đổi
+qua `POSE_MIN_DETECTION_CONFIDENCE`, `POSE_MIN_PRESENCE_CONFIDENCE`,
+`POSE_MIN_TRACKING_CONFIDENCE`, `POSE_VISIBILITY_THRESHOLD`. Inference chạy
+trong threadpool để không khóa event loop FastAPI.
+
+## Cấu trúc mã
 
 ```text
-Flutter Windows/Web: http://127.0.0.1:8000
-Android Emulator:    http://10.0.2.2:8000
-Điện thoại thật:     http://IP_MAY_TINH:8000
+backend/
+├── main.py                         # runtime YOLO và endpoint cũ
+├── routers/outfit_analysis.py      # endpoint kết hợp
+├── routers/pose_websocket.py       # WebSocket JPEG/pose
+├── schemas/outfit_analysis.py      # request/response/Structured Output
+├── schemas/pose_result.py          # config và pose response
+├── services/color_detector.py      # màu chính + tối đa hai màu phụ
+├── services/openai_outfit_service.py
+├── services/rule_based_outfit_service.py
+├── services/pose_anchor_service.py
+├── services/pose_landmarker_service.py
+├── scripts/download_pose_model.py
+└── tests/
 ```
 
-Để tìm `IP_MAY_TINH`, mở CMD hoặc PowerShell và chạy:
+## Kiểm thử
 
 ```powershell
-ipconfig
+.\backend\.venv\Scripts\python.exe -m pytest backend\tests -v
 ```
 
-Tìm dòng **IPv4 Address** của card Wi-Fi đang dùng, ví dụ `192.168.1.25`, rồi
-dùng `http://192.168.1.25:8000`. Điện thoại và máy tính phải cùng Wi-Fi. Khi
-Windows hỏi quyền mạng, cho phép Python/Uvicorn qua **Windows Firewall** trên mạng
-Private. Có thể cần tạo inbound rule cho TCP port 8000 nếu firewall vẫn chặn.
+Test mock YOLO, OpenAI và MediaPipe; kiểm tra ảnh, anchor, visibility, WebSocket
+config/frame lỗi, trường hợp không thấy người và không lưu frame. Không phát
+sinh chi phí API.
 
-## 7. Chạy kiểm thử
-
-Từ thư mục gốc, sau khi kích hoạt `.venv`:
-
-```powershell
-python -m compileall backend
-python -m pytest backend/tests -v
-```
-
-Test dùng model YOLO giả để không phụ thuộc bắt buộc vào `best.pt`. Việc model thật
-có tải được hay không cần kiểm tra thêm qua `/health` và `/api/v1/classes`.
-
-## 8. Lỗi thường gặp
+## Lỗi thường gặp
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| `/health` báo `model_loaded: false` | Kiểm tra đúng `backend/models/best.pt`, kích thước file và đã cài `ultralytics`, `torch`. |
-| `/api/v1/detect` trả 503 | Model đang thiếu hoặc tải thất bại; xem `/health` và log terminal. |
-| Trả 400 về ảnh | Chỉ gửi JPEG/PNG/WebP thật, MIME đúng định dạng và nhỏ hơn hoặc bằng 10 MB. |
-| Flutter Web báo CORS/network | Kiểm tra server đang chạy, URL đúng; backend đã mở CORS cho môi trường phát triển. |
-| Android Emulator không kết nối | Dùng `10.0.2.2`, không dùng `127.0.0.1`. |
-| Điện thoại thật không kết nối | Chạy Uvicorn với `--host 0.0.0.0`, cùng Wi-Fi, dùng IPv4 máy tính và kiểm tra firewall. |
-| GPU không được dùng | Kiểm tra `torch.cuda.is_available()` và cài đúng PyTorch/CUDA; backend vẫn chạy CPU. |
-| Port 8000 đã được dùng | Dừng tiến trình cũ hoặc đổi `--port`, đồng thời cập nhật URL trong Flutter. |
+| `/health` báo `model_loaded: false` | Kiểm tra `backend/models/best.pt`, Ultralytics/PyTorch và `MODEL_PATH`. |
+| `/api/v1/outfit/analyze` trả 503 | Model chưa tải được; xem `/health` và log server. |
+| WebSocket báo `Không tìm thấy pose_landmarker_lite.task` | Chạy `python backend/scripts/download_pose_model.py` từ thư mục gốc. |
+| Trả 400 | Gửi JPG/JPEG/PNG thật, MIME đúng, không rỗng và tối đa 10 MB. |
+| Trả 422 không nhận diện | Chọn ảnh rõ, đủ sáng và chụp toàn thân. |
+| `source` là `fallback` | Kiểm tra key, billing, quyền model, mạng và timeout; response vẫn hợp lệ. |
+| Android Emulator không kết nối | Backend dùng `--host 0.0.0.0`; Flutter dùng `http://10.0.2.2:8000`. |

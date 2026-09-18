@@ -1,22 +1,11 @@
-import 'package:flutter/foundation.dart';
-
 /// Quản lý tập trung địa chỉ FastAPI cho mọi nền tảng.
 abstract final class ApiConfig {
   static const String _environmentBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8000',
   );
 
-  static String get baseUrl {
-    final configuredUrl = _environmentBaseUrl.trim();
-    if (configuredUrl.isNotEmpty) {
-      return normalizeBaseUrl(configuredUrl);
-    }
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000';
-    }
-    return 'http://127.0.0.1:8000';
-  }
+  static String get baseUrl => normalizeBaseUrl(_environmentBaseUrl);
 
   static String normalizeBaseUrl(String value) {
     var normalized = value.trim();
@@ -45,6 +34,35 @@ abstract final class ApiConfig {
         'confidence': confidence.toStringAsFixed(2),
         'iou': iou.toStringAsFixed(2),
       },
+    );
+  }
+
+  static Uri outfitAnalysisUri({String? baseUrlOverride}) {
+    final normalizedBaseUrl = normalizeBaseUrl(baseUrlOverride ?? baseUrl);
+    final parsedBaseUrl = Uri.tryParse(normalizedBaseUrl);
+    if (parsedBaseUrl == null ||
+        !parsedBaseUrl.hasScheme ||
+        parsedBaseUrl.host.isEmpty ||
+        (parsedBaseUrl.scheme != 'http' && parsedBaseUrl.scheme != 'https')) {
+      throw const FormatException('Địa chỉ máy chủ không hợp lệ.');
+    }
+    return Uri.parse('$normalizedBaseUrl/api/v1/outfit/analyze');
+  }
+
+  static Uri poseWebSocketUri({String? baseUrlOverride}) {
+    final normalizedBaseUrl = normalizeBaseUrl(baseUrlOverride ?? baseUrl);
+    final parsedBaseUrl = Uri.tryParse(normalizedBaseUrl);
+    if (parsedBaseUrl == null ||
+        !parsedBaseUrl.hasScheme ||
+        parsedBaseUrl.host.isEmpty ||
+        (parsedBaseUrl.scheme != 'http' && parsedBaseUrl.scheme != 'https')) {
+      throw const FormatException('Địa chỉ máy chủ không hợp lệ.');
+    }
+    return parsedBaseUrl.replace(
+      scheme: parsedBaseUrl.scheme == 'https' ? 'wss' : 'ws',
+      path: '${parsedBaseUrl.path}/api/v1/pose/ws'.replaceAll('//', '/'),
+      query: null,
+      fragment: null,
     );
   }
 }

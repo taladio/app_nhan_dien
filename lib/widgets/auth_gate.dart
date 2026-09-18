@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/auth/login_page.dart';
 import '../screens/auth/register_page.dart';
-import '../screens/clothing_detection_screen.dart';
+import '../screens/outfit_analysis_screen.dart';
 import '../services/auth_service.dart';
 
 class AuthGate extends StatefulWidget {
@@ -48,7 +48,7 @@ class _AuthGateState extends State<AuthGate> {
 
         final user = snapshot.data;
         if (user != null) {
-          return ClothingDetectionScreen(onSignOut: _signOut);
+          return OutfitAnalysisScreen(onSignOut: _signOut);
         }
         if (_showRegisterPage) {
           return RegisterPage(

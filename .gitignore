@@ -56,3 +56,5 @@ backend/Ultralytics/
 backend/test_images/*
 !backend/test_images/.gitkeep
 backend/runs/
+backend/.env
+.env

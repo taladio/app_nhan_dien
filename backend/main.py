@@ -20,6 +20,11 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
+try:
+    from .services.color_detector import detect_clothing_colors
+except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
+    from services.color_detector import detect_clothing_colors
+
 BACKEND_DIR = Path(__file__).resolve().parent
 PIL_IMAGE_OPEN = Image.open
 
@@ -249,8 +254,8 @@ runtime.load_once()
 
 app = FastAPI(
     title="Fashion AI API",
-    description="API nhận diện tám nhóm quần áo cho ứng dụng Flutter.",
-    version="1.0.0",
+    description="API nhận diện và đánh giá trang phục cho ứng dụng Flutter.",
+    version="2.0.0",
 )
 
 # CORS mở trong giai đoạn phát triển để Flutter Web và các Flutter client gọi API.
@@ -282,6 +287,14 @@ def health() -> dict[str, Any]:
     }
     if runtime.load_error:
         payload["model_error"] = runtime.load_error
+    payload.update(
+        {
+            "pose_model_loaded": pose_runtime.loaded,
+            "pose_model_path": str(pose_runtime.model_path),
+        }
+    )
+    if pose_runtime.load_error:
+        payload["pose_model_error"] = pose_runtime.load_error
     return payload
 
 
@@ -361,76 +374,10 @@ def validate_and_decode_image(data: bytes, content_type: str | None) -> np.ndarr
     return image
 
 
-_COLOR_NAMES = {
-    0: "Đen",
-    1: "Trắng",
-    2: "Xám",
-    3: "Đỏ",
-    4: "Cam",
-    5: "Vàng",
-    6: "Xanh lá",
-    7: "Xanh ngọc",
-    8: "Xanh dương",
-    9: "Tím",
-    10: "Hồng",
-    11: "Nâu",
-}
-
-
 def detect_dominant_color(crop: np.ndarray) -> str:
-    """Ước lượng màu HSV cơ bản, ưu tiên vùng giữa của bounding box.
+    """Giữ API màu cũ; endpoint mới còn nhận tối đa hai màu phụ."""
 
-    Đây là xử lý ảnh cơ bản nên có thể chưa chính xác với quần áo nhiều màu,
-    có hoa văn, bị bóng đổ hoặc khi bounding box chứa nhiều nền.
-    """
-
-    try:
-        if crop is None or crop.size == 0 or crop.ndim != 3:
-            return "Không xác định"
-
-        height, width = crop.shape[:2]
-        if height <= 0 or width <= 0:
-            return "Không xác định"
-
-        y_margin = int(height * 0.15)
-        x_margin = int(width * 0.15)
-        center = crop[y_margin : height - y_margin, x_margin : width - x_margin]
-        if center.size == 0:
-            center = crop
-
-        # Giới hạn lượng pixel cần phân tích để request ảnh lớn vẫn nhẹ.
-        if center.shape[0] > 200 or center.shape[1] > 200:
-            center = cv2.resize(center, (200, 200), interpolation=cv2.INTER_AREA)
-
-        hsv = cv2.cvtColor(center, cv2.COLOR_BGR2HSV)
-        hue = hsv[:, :, 0]
-        saturation = hsv[:, :, 1]
-        value = hsv[:, :, 2]
-        labels = np.full(hue.shape, -1, dtype=np.int8)
-
-        labels[value < 48] = 0  # Đen
-        labels[(labels < 0) & (saturation < 35) & (value >= 205)] = 1  # Trắng
-        labels[(labels < 0) & (saturation < 48)] = 2  # Xám
-
-        colored = labels < 0
-        labels[colored & (hue >= 5) & (hue < 22) & (value < 175)] = 11  # Nâu
-        colored = labels < 0
-        labels[colored & ((hue < 10) | (hue >= 170))] = 3  # Đỏ
-        labels[colored & (hue >= 10) & (hue < 20)] = 4  # Cam
-        labels[colored & (hue >= 20) & (hue < 35)] = 5  # Vàng
-        labels[colored & (hue >= 35) & (hue < 85)] = 6  # Xanh lá
-        labels[colored & (hue >= 85) & (hue < 100)] = 7  # Xanh ngọc
-        labels[colored & (hue >= 100) & (hue < 130)] = 8  # Xanh dương
-        labels[colored & (hue >= 130) & (hue < 150)] = 9  # Tím
-        labels[colored & (hue >= 150) & (hue < 170)] = 10  # Hồng
-
-        valid_labels = labels[labels >= 0]
-        if valid_labels.size == 0:
-            return "Không xác định"
-        counts = np.bincount(valid_labels, minlength=len(_COLOR_NAMES))
-        return _COLOR_NAMES.get(int(np.argmax(counts)), "Không xác định")
-    except (cv2.error, TypeError, ValueError, IndexError):
-        return "Không xác định"
+    return detect_clothing_colors(crop)[0]
 
 
 def _to_numpy(value: Any) -> np.ndarray:
@@ -514,13 +461,17 @@ def process_yolo_results(
             continue
 
         crop = image[bbox["y1"] : bbox["y2"], bbox["x1"] : bbox["x2"]]
+        primary_color, secondary_colors = detect_clothing_colors(crop)
         detections.append(
             {
                 "class_id": class_id,
                 "raw_class_name": raw_class_name,
                 "class_name": normalized_name,
                 "class_name_vi": APP_CLASSES[normalized_name],
-                "color": detect_dominant_color(crop),
+                # `color` được giữ để không phá response của /api/v1/detect.
+                "color": primary_color,
+                "primary_color": primary_color,
+                "secondary_colors": secondary_colors,
                 "confidence": round(min(max(confidence, 0.0), 1.0), 4),
                 "bbox": bbox,
                 "bbox_normalized": {
@@ -533,6 +484,8 @@ def process_yolo_results(
         )
 
     detections.sort(key=lambda item: item["confidence"], reverse=True)
+    for index, detection in enumerate(detections, start=1):
+        detection["detection_id"] = f"det_{index}"
     return detections, ignored_count
 
 
@@ -607,3 +560,26 @@ async def detect(
         "detections": detections,
         "summary": summary,
     }
+
+
+try:
+    from .routers.outfit_analysis import create_outfit_analysis_router
+    from .routers.pose_websocket import create_pose_websocket_router
+    from .services.pose_landmarker_service import pose_runtime
+except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
+    from routers.outfit_analysis import create_outfit_analysis_router
+    from routers.pose_websocket import create_pose_websocket_router
+    from services.pose_landmarker_service import pose_runtime
+
+app.include_router(create_pose_websocket_router())
+
+app.include_router(
+    create_outfit_analysis_router(
+        runtime=runtime,
+        run_yolo=_run_yolo,
+        process_yolo_results=process_yolo_results,
+        validate_and_decode_image=validate_and_decode_image,
+        safe_filename=_safe_filename,
+        max_image_size=MAX_IMAGE_SIZE,
+    )
+)

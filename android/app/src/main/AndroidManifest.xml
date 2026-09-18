@@ -6,9 +6,7 @@
     <application
         android:label="app_nhan_dien"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
-        <!-- HTTP chỉ phục vụ FastAPI local khi phát triển; production nên dùng HTTPS. -->
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
