@@ -14,7 +14,7 @@ class PoseSmoother {
 
   PoseResult? update(PoseResult current, {DateTime? now}) {
     final currentTime = now ?? DateTime.now();
-    if (!current.poseDetected || current.anchors == null) {
+    if (!current.poseDetected || current.landmarks.isEmpty) {
       final lastDetectedAt = _lastDetectedAt;
       if (_last != null &&
           lastDetectedAt != null &&
@@ -27,7 +27,7 @@ class PoseSmoother {
 
     _lastDetectedAt = currentTime;
     final previous = _last;
-    if (previous == null || previous.anchors == null) {
+    if (previous == null) {
       _last = current;
       return current;
     }
@@ -46,7 +46,10 @@ class PoseSmoother {
       poseDetected: true,
       bodyVisible: current.bodyVisible,
       landmarks: smoothedLandmarks,
-      anchors: PoseAnchors.lerp(previous.anchors!, current.anchors!, alpha),
+      worldLandmarks: current.worldLandmarks,
+      anchors: previous.anchors == null || current.anchors == null
+          ? current.anchors
+          : PoseAnchors.lerp(previous.anchors!, current.anchors!, alpha),
       message: current.message,
     );
     return _last;

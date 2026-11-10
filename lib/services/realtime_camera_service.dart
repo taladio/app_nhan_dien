@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as image_lib;
 
+import '../utils/camera_selection.dart';
+
 @immutable
 class RealtimeCameraFrame {
   const RealtimeCameraFrame({required this.bytes, required this.filename});
@@ -67,7 +69,13 @@ class PluginRealtimeCameraSession implements RealtimeCameraSession {
   bool get isInitialized => _controller?.value.isInitialized ?? false;
 
   @override
-  bool get canSwitchCamera => _cameras.length > 1;
+  bool get canSwitchCamera {
+    final currentDirection = _controller?.description.lensDirection;
+    if (currentDirection != null) {
+      return hasOppositeCamera(_cameras, currentDirection);
+    }
+    return _cameras.map((camera) => camera.lensDirection).toSet().length > 1;
+  }
 
   ImageFormatGroup get _preferredImageFormat {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -204,12 +212,25 @@ class PluginRealtimeCameraSession implements RealtimeCameraSession {
     if (!canSwitchCamera) {
       return;
     }
+    final currentDirection = _controller?.description.lensDirection;
+    if (currentDirection == null) return;
+    final targetIndex = oppositeCameraIndex(_cameras, currentDirection);
+    if (targetIndex == null) return;
+
+    final previousIndex = _cameraIndex;
     await stopFrameStream();
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
     try {
       await _disposeController();
-      await _createController(_cameraIndex);
+      await _createController(targetIndex);
+      _cameraIndex = targetIndex;
     } on CameraException catch (error) {
+      await _disposeController();
+      try {
+        await _createController(previousIndex);
+        _cameraIndex = previousIndex;
+      } on CameraException {
+        // Giữ lỗi đổi camera ban đầu; màn hình sẽ cho phép người dùng thử lại.
+      }
       throw RealtimeCameraException(_cameraErrorMessage(error));
     }
   }

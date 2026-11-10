@@ -18,6 +18,9 @@ void main() {
           'visibility': 0.98,
         },
       },
+      'world_landmarks': <String, dynamic>{
+        'left_shoulder': {'x': -.2, 'y': -.5, 'z': .15, 'visibility': .9},
+      },
       'anchors': <String, dynamic>{
         'shoulder_center': <String, dynamic>{'x': 0.49, 'y': 0.245},
         'shoulder_width': 0.36,
@@ -39,6 +42,8 @@ void main() {
     expect(result.landmarks['left_shoulder']!.visibility, 0.98);
     expect(result.anchors!.shoulderCenter.x, 0.49);
     expect(result.anchors!.torsoHeight, 0.30);
+    expect(result.worldLandmarks['left_shoulder']!.x, -.2);
+    expect(result.worldLandmarks['left_shoulder']!.y, -.5);
   });
 
   test('parse response when pose is missing', () {
@@ -52,5 +57,6 @@ void main() {
     expect(result.poseDetected, isFalse);
     expect(result.anchors, isNull);
     expect(result.landmarks, isEmpty);
+    expect(result.worldLandmarks, isEmpty);
   });
 }

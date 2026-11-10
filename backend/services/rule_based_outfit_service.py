@@ -94,10 +94,12 @@ def evaluate_with_rules(payload: AnalysisPayload) -> ModelOutfitEvaluation:
     classes = {item.class_name for item in payload.detected_items}
     colors = [item.primary_color for item in payload.detected_items]
     context = payload.context
+    weather = context.weather
+    effective_temperature = weather.temperature_c if weather else context.temperature_c
 
     color_score, color_strength = _color_score(colors)
     season_score, temperature_problem = _season_temperature_score(
-        classes, context.season, context.temperature_c
+        classes, context.season, effective_temperature
     )
     style_score = _match_score(classes, STYLE_ITEMS[context.style])
     occasion_score = _match_score(classes, OCCASION_ITEMS[context.occasion])
@@ -124,14 +126,21 @@ def evaluate_with_rules(payload: AnalysisPayload) -> ModelOutfitEvaluation:
     if temperature_problem:
         recommendations.insert(0, temperature_problem.replace("có thể chưa", "nên được điều chỉnh để"))
 
-    warm_weather = context.temperature_c > 28 or context.season == "summer"
-    cold_weather = context.temperature_c < 18 or context.season == "winter"
+    warm_weather = effective_temperature > 28 or context.season == "summer"
+    cold_weather = effective_temperature < 18 or context.season == "winter"
+    rain_risk = bool(weather and (
+        weather.precipitation_mm_current_interval > 0
+        or weather.precipitation_probability_max_percent_today >= 60
+        or weather.weather_code in {51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99}
+    ))
+    if rain_risk:
+        recommendations.insert(0, "Mang lớp ngoài chống mưa và chọn giày đế bám; lượng mưa hiện tại khác xác suất mưa trong ngày.")
     suggested = SuggestedOutfit(
         top="Áo thun hoặc áo sơ mi màu sáng, kiểu dáng gọn" if warm_weather else "Áo có độ dài cân đối, màu trung tính",
         bottom="Quần short hoặc chân váy màu be" if warm_weather else "Quần dài hoặc chân váy màu trung tính",
-        outerwear="Áo khoác có thể phối lớp" if cold_weather else None,
-        shoes="Giày có màu lặp lại một màu trong bộ đồ",
-        reason="Gợi ý ưu tiên sự cân đối, bối cảnh sử dụng và mức nhiệt người dùng đã chọn.",
+        outerwear="Áo khoác chống mưa mỏng" if rain_risk else ("Áo khoác có thể phối lớp" if cold_weather else None),
+        shoes="Giày đế bám, hạn chế thấm nước" if rain_risk else "Giày có màu lặp lại một màu trong bộ đồ",
+        reason="Gợi ý dựa trên đồ YOLO nhận diện, bối cảnh và dữ liệu Open-Meteo." if weather else "Gợi ý ưu tiên sự cân đối, bối cảnh sử dụng và mức nhiệt người dùng đã chọn.",
     )
 
     return ModelOutfitEvaluation(

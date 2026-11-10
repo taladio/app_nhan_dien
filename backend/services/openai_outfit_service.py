@@ -30,6 +30,9 @@ Quy tắc bắt buộc:
   đối; không khẳng định size chính xác.
 - Không suy đoán giới tính, tuổi, dân tộc hoặc thuộc tính nhạy cảm.
 - Không khẳng định chất liệu của món đồ đã nhận diện.
+- Nếu có context.weather, dùng dữ liệu Open-Meteo có cấu trúc. Phân biệt lượng
+  mưa của khoảng đo hiện tại (mm) với xác suất mưa cao nhất trong ngày (%).
+  Không suy ra mùa chỉ từ nhiệt độ; dùng context.season người dùng đã chọn.
 - Chỉ trả dữ liệu đúng schema được cung cấp. Không tự tính overall_score hoặc
   rating vì server sẽ tính lại bằng công thức cố định.
 """.strip()
@@ -44,7 +47,8 @@ class OpenAIOutfitService:
         self._client = OpenAI(
             api_key=api_key,
             timeout=timeout_seconds,
-            max_retries=1,
+            # Luồng UI cần phản hồi nhanh; router sẽ fallback cục bộ ngay khi lỗi.
+            max_retries=0,
         )
         self._model = model
 
@@ -56,7 +60,7 @@ class OpenAIOutfitService:
 
         model = os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
         try:
-            timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
+            timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "12"))
         except ValueError as error:
             raise OpenAIConfigurationError("OPENAI_TIMEOUT_SECONDS không hợp lệ") from error
         if not 1 <= timeout_seconds <= 120:

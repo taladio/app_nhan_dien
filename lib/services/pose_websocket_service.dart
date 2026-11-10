@@ -114,8 +114,16 @@ class PoseWebSocketService {
       _reconnectAttempts = 0;
       _setState(PoseSocketStatus.connected, 'Đã kết nối');
     } on Object {
-      _handleDisconnect(generation, 'Không thể kết nối backend');
+      _handleDisconnect(generation, _connectionFailureMessage());
     }
+  }
+
+  String _connectionFailureMessage() {
+    if (uri.host == '10.0.2.2') {
+      return 'Không thể kết nối backend. 10.0.2.2 chỉ dùng cho Android '
+          'Emulator; điện thoại thật cần IP máy tính hoặc adb reverse.';
+    }
+    return 'Không thể kết nối backend tại ${uri.host}.';
   }
 
   bool sendFrame(Uint8List bytes) {

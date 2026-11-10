@@ -51,7 +51,13 @@ class OutfitScoreCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
-            _ScoreRow(label: 'Màu sắc', score: evaluation.colorScore),
+            if (evaluation.colorScore != null)
+              _ScoreRow(label: 'Màu sắc', score: evaluation.colorScore!)
+            else
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Text('Màu sắc: chưa đủ dữ liệu để chấm điểm'),
+              ),
             _ScoreRow(
               label: 'Mùa và nhiệt độ',
               score: evaluation.seasonTemperatureScore,
@@ -73,10 +79,17 @@ class _ScoreRow extends StatelessWidget {
   const _ScoreRow({required this.label, required this.score});
 
   final String label;
-  final double score;
+  final double? score;
 
   @override
   Widget build(BuildContext context) {
+    final value = score;
+    if (value == null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text('$label: chưa đủ dữ liệu để chấm điểm'),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -84,7 +97,7 @@ class _ScoreRow extends StatelessWidget {
           SizedBox(width: 128, child: Text(label)),
           Expanded(
             child: LinearProgressIndicator(
-              value: score.clamp(0, 100) / 100,
+              value: value.clamp(0, 100) / 100,
               minHeight: 8,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -93,7 +106,7 @@ class _ScoreRow extends StatelessWidget {
           SizedBox(
             width: 42,
             child: Text(
-              score.toStringAsFixed(0),
+              value.toStringAsFixed(0),
               textAlign: TextAlign.end,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),

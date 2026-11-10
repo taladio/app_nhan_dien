@@ -22,8 +22,10 @@ from PIL import Image, UnidentifiedImageError
 
 try:
     from .services.color_detector import detect_clothing_colors
+    from .routers.try_on import router as try_on_router
 except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
     from services.color_detector import detect_clothing_colors
+    from routers.try_on import router as try_on_router
 
 BACKEND_DIR = Path(__file__).resolve().parent
 PIL_IMAGE_OPEN = Image.open
@@ -565,13 +567,20 @@ async def detect(
 try:
     from .routers.outfit_analysis import create_outfit_analysis_router
     from .routers.pose_websocket import create_pose_websocket_router
+    from .routers.weather import router as weather_router
+    from .routers.gemini_fashion import create_gemini_fashion_router
     from .services.pose_landmarker_service import pose_runtime
 except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
     from routers.outfit_analysis import create_outfit_analysis_router
     from routers.pose_websocket import create_pose_websocket_router
+    from routers.weather import router as weather_router
+    from routers.gemini_fashion import create_gemini_fashion_router
     from services.pose_landmarker_service import pose_runtime
 
 app.include_router(create_pose_websocket_router())
+app.include_router(weather_router)
+app.include_router(try_on_router)
+app.include_router(create_gemini_fashion_router())
 
 app.include_router(
     create_outfit_analysis_router(

@@ -11,11 +11,13 @@ except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
     from schemas.pose_result import AnchorPoint, PoseAnchors, PosePoint
 
 
-REQUIRED_LANDMARKS = (
+TORSO_LANDMARKS = (
     "left_shoulder",
     "right_shoulder",
     "left_hip",
     "right_hip",
+)
+FULL_BODY_LANDMARKS = TORSO_LANDMARKS + (
     "left_knee",
     "right_knee",
     "left_ankle",
@@ -40,12 +42,12 @@ def calculate_pose_anchors(
     *,
     visibility_threshold: float = 0.5,
 ) -> PoseAnchors | None:
-    """Trả anchor khi toàn bộ điểm quan trọng đủ rõ, ngược lại trả ``None``."""
+    """Tính anchor thân người; thiếu chân chỉ tắt cờ toàn thân."""
 
     if any(
         name not in landmarks
         or landmarks[name].visibility < visibility_threshold
-        for name in REQUIRED_LANDMARKS
+        for name in TORSO_LANDMARKS
     ):
         return None
 
@@ -55,6 +57,21 @@ def calculate_pose_anchors(
     right_hip = landmarks["right_hip"]
     shoulder_center = _midpoint(left_shoulder, right_shoulder)
     hip_center = _midpoint(left_hip, right_hip)
+    body_visible = all(
+        name in landmarks and landmarks[name].visibility >= visibility_threshold
+        for name in FULL_BODY_LANDMARKS
+    )
+
+    def leg_length(side: str) -> float:
+        names = (f"{side}_hip", f"{side}_knee", f"{side}_ankle")
+        if any(
+            name not in landmarks or landmarks[name].visibility < visibility_threshold
+            for name in names
+        ):
+            return 0.0
+        return _distance(landmarks[names[0]], landmarks[names[1]]) + _distance(
+            landmarks[names[1]], landmarks[names[2]]
+        )
 
     return PoseAnchors(
         shoulder_center=shoulder_center,
@@ -74,14 +91,7 @@ def calculate_pose_anchors(
             y=(shoulder_center.y + hip_center.y) / 2,
         ),
         torso_height=_distance(shoulder_center, hip_center),
-        left_leg_length=(
-            _distance(left_hip, landmarks["left_knee"])
-            + _distance(landmarks["left_knee"], landmarks["left_ankle"])
-        ),
-        right_leg_length=(
-            _distance(right_hip, landmarks["right_knee"])
-            + _distance(landmarks["right_knee"], landmarks["right_ankle"])
-        ),
-        body_visible=True,
+        left_leg_length=leg_length("left"),
+        right_leg_length=leg_length("right"),
+        body_visible=body_visible,
     )
-

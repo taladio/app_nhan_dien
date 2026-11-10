@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as image_lib;
 
 import '../config/api_config.dart';
+import '../models/body_profile.dart';
 import '../models/outfit_analysis_result.dart';
+import '../models/weather_snapshot.dart';
 
 const int maxAnalysisImageBytes = 10 * 1024 * 1024;
 
@@ -26,13 +28,15 @@ class PreparedAnalysisImage {
 abstract interface class OutfitAnalysisServiceContract {
   Future<OutfitAnalysisResult> analyze({
     required PreparedAnalysisImage image,
-    required double heightCm,
-    required double weightKg,
-    required String season,
-    required double temperatureC,
+    required double? heightCm,
+    required double? weightKg,
+    required String? season,
+    required double? temperatureC,
     required String style,
     required String occasion,
     required double confidence,
+    WeatherSnapshot? weather,
+    BodyGender gender = BodyGender.unspecified,
   });
 
   void close();
@@ -63,8 +67,20 @@ PreparedAnalysisImage prepareAnalysisImage({
     );
   }
 
+  final decoded = image_lib.decodeImage(bytes);
+  if (decoded == null) {
+    throw const OutfitAnalysisException('Không thể đọc ảnh đã chọn.');
+  }
+
   final safeFilename = _safeFilename(filename, mimeType);
-  if (bytes.length <= maxAnalysisImageBytes) {
+  image_lib.Image working = decoded;
+  const maxDimension = 1600;
+  const optimizationThreshold = 2 * 1024 * 1024;
+  final needsOptimization =
+      bytes.length > optimizationThreshold ||
+      working.width > maxDimension ||
+      working.height > maxDimension;
+  if (!needsOptimization && bytes.length <= maxAnalysisImageBytes) {
     return PreparedAnalysisImage(
       bytes: bytes,
       filename: safeFilename,
@@ -72,13 +88,6 @@ PreparedAnalysisImage prepareAnalysisImage({
     );
   }
 
-  final decoded = image_lib.decodeImage(bytes);
-  if (decoded == null) {
-    throw const OutfitAnalysisException('Không thể đọc ảnh đã chọn.');
-  }
-
-  image_lib.Image working = decoded;
-  const maxDimension = 1920;
   if (working.width > maxDimension || working.height > maxDimension) {
     if (working.width >= working.height) {
       working = image_lib.copyResize(working, width: maxDimension);
@@ -118,11 +127,28 @@ PreparedAnalysisImage prepareAnalysisImage({
   );
 }
 
+Future<PreparedAnalysisImage> prepareAnalysisImageInBackground({
+  required Uint8List bytes,
+  required String filename,
+}) {
+  return compute<Map<String, Object>, PreparedAnalysisImage>(
+    _prepareAnalysisImage,
+    <String, Object>{'bytes': bytes, 'filename': filename},
+  );
+}
+
+PreparedAnalysisImage _prepareAnalysisImage(Map<String, Object> request) {
+  return prepareAnalysisImage(
+    bytes: request['bytes']! as Uint8List,
+    filename: request['filename']! as String,
+  );
+}
+
 class OutfitAnalysisService implements OutfitAnalysisServiceContract {
   OutfitAnalysisService({
     http.Client? client,
     String? baseUrl,
-    this.timeout = const Duration(seconds: 75),
+    this.timeout = const Duration(seconds: 60),
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null,
        _baseUrl = ApiConfig.normalizeBaseUrl(baseUrl ?? ApiConfig.baseUrl);
@@ -135,26 +161,31 @@ class OutfitAnalysisService implements OutfitAnalysisServiceContract {
   @override
   Future<OutfitAnalysisResult> analyze({
     required PreparedAnalysisImage image,
-    required double heightCm,
-    required double weightKg,
-    required String season,
-    required double temperatureC,
+    required double? heightCm,
+    required double? weightKg,
+    required String? season,
+    required double? temperatureC,
     required String style,
     required String occasion,
     required double confidence,
+    WeatherSnapshot? weather,
+    BodyGender gender = BodyGender.unspecified,
   }) async {
     if (image.bytes.isEmpty || image.bytes.length > maxAnalysisImageBytes) {
       throw const OutfitAnalysisException(
         'Ảnh gửi lên phải nhỏ hơn hoặc bằng 10 MB.',
       );
     }
-    if (!heightCm.isFinite || heightCm <= 0 || heightCm > 300) {
+    if (heightCm != null &&
+        (!heightCm.isFinite || heightCm <= 0 || heightCm > 300)) {
       throw const OutfitAnalysisException('Chiều cao không hợp lệ.');
     }
-    if (!weightKg.isFinite || weightKg <= 0 || weightKg > 500) {
+    if (weightKg != null &&
+        (!weightKg.isFinite || weightKg <= 0 || weightKg > 500)) {
       throw const OutfitAnalysisException('Cân nặng không hợp lệ.');
     }
-    if (!temperatureC.isFinite || temperatureC < -100 || temperatureC > 100) {
+    if (temperatureC != null &&
+        (!temperatureC.isFinite || temperatureC < -100 || temperatureC > 100)) {
       throw const OutfitAnalysisException('Nhiệt độ không hợp lệ.');
     }
     if (!confidence.isFinite || confidence < 0 || confidence > 1) {
@@ -171,10 +202,11 @@ class OutfitAnalysisService implements OutfitAnalysisServiceContract {
     final mediaParts = image.mimeType.split('/');
     final request = http.MultipartRequest('POST', uri)
       ..fields.addAll(<String, String>{
-        'height_cm': heightCm.toString(),
-        'weight_kg': weightKg.toString(),
-        'season': season,
-        'temperature_c': temperatureC.toString(),
+        if (heightCm != null) 'height_cm': heightCm.toString(),
+        if (weightKg != null) 'weight_kg': weightKg.toString(),
+        if (gender.adviceValue != null) 'gender': gender.adviceValue!,
+        if (weather != null || temperatureC != null)
+          'temperature_c': (weather?.temperatureC ?? temperatureC).toString(),
         'style': style,
         'occasion': occasion,
         'confidence': confidence.toStringAsFixed(2),
@@ -188,6 +220,12 @@ class OutfitAnalysisService implements OutfitAnalysisServiceContract {
         ),
       );
 
+    if (weather != null) {
+      request.fields['weather_json'] = jsonEncode(weather.toAnalysisJson());
+    } else if (season != null) {
+      request.fields['season'] = season;
+    }
+
     late final http.Response response;
     try {
       response = await _client
@@ -195,17 +233,13 @@ class OutfitAnalysisService implements OutfitAnalysisServiceContract {
           .then(http.Response.fromStream)
           .timeout(timeout);
     } on TimeoutException {
-      throw const OutfitAnalysisException(
-        'Phân tích mất quá nhiều thời gian. Vui lòng thử lại.',
+      throw OutfitAnalysisException(
+        _backendConnectionMessage(uri, timedOut: true),
       );
     } on http.ClientException {
-      throw const OutfitAnalysisException(
-        'Không thể kết nối backend. Hãy kiểm tra máy chủ và mạng.',
-      );
+      throw OutfitAnalysisException(_backendConnectionMessage(uri));
     } catch (_) {
-      throw const OutfitAnalysisException(
-        'Không thể kết nối backend. Hãy kiểm tra máy chủ và mạng.',
-      );
+      throw OutfitAnalysisException(_backendConnectionMessage(uri));
     }
 
     final body = utf8.decode(response.bodyBytes, allowMalformed: true);
@@ -235,6 +269,17 @@ class OutfitAnalysisService implements OutfitAnalysisServiceContract {
   void close() {
     if (_ownsClient) _client.close();
   }
+}
+
+String _backendConnectionMessage(Uri uri, {bool timedOut = false}) {
+  final prefix = timedOut
+      ? 'Backend ${uri.host} phản hồi quá chậm.'
+      : 'Không thể kết nối backend ${uri.host}.';
+  if (uri.host == '10.0.2.2') {
+    return '$prefix 10.0.2.2 chỉ dùng cho Android Emulator; điện thoại thật '
+        'phải dùng IP máy tính hoặc adb reverse.';
+  }
+  return '$prefix Hãy kiểm tra backend, địa chỉ API và kết nối mạng.';
 }
 
 String? _analysisMimeFromSignature(Uint8List bytes) {

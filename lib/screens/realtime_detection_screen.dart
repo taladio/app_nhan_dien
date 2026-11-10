@@ -4,15 +4,23 @@ import 'package:flutter/material.dart';
 
 import '../models/detection_result.dart';
 import '../services/fashion_api_service.dart';
+import '../services/body_profile_store.dart';
 import '../services/realtime_camera_service.dart';
+import '../widgets/body_profile_picker.dart';
 import '../widgets/detection_painter.dart';
 import '../widgets/detection_result_card.dart';
 
 class RealtimeDetectionScreen extends StatefulWidget {
-  const RealtimeDetectionScreen({super.key, this.service, this.cameraSession});
+  const RealtimeDetectionScreen({
+    super.key,
+    this.service,
+    this.cameraSession,
+    this.profileStore,
+  });
 
   final FashionDetectionService? service;
   final RealtimeCameraSession? cameraSession;
+  final BodyProfileStore? profileStore;
 
   @override
   State<RealtimeDetectionScreen> createState() =>
@@ -268,6 +276,10 @@ class _RealtimeDetectionScreenState extends State<RealtimeDetectionScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
+                  if (widget.profileStore != null) ...<Widget>[
+                    BodyProfilePicker(store: widget.profileStore!),
+                    const SizedBox(height: 8),
+                  ],
                   _buildCameraArea(context),
                   const SizedBox(height: 12),
                   _buildStatus(context),

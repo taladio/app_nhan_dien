@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -13,21 +14,43 @@ import cv2
 import numpy as np
 
 try:
-    from ..schemas.pose_result import PoseAnchors, PosePoint
+    from ..schemas.pose_result import PoseAnchors, PosePoint, PoseWorldPoint
     from .pose_anchor_service import calculate_pose_anchors
 except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
-    from schemas.pose_result import PoseAnchors, PosePoint
+    from schemas.pose_result import PoseAnchors, PosePoint, PoseWorldPoint
     from services.pose_anchor_service import calculate_pose_anchors
 
 
 LOGGER = logging.getLogger(__name__)
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_POSE_MODEL_PATH = BACKEND_DIR / "models" / "pose_landmarker_lite.task"
+FULL_POSE_MODEL_PATH = BACKEND_DIR / "models" / "pose_landmarker_full.task"
 MAX_POSE_FRAME_SIZE = 3 * 1024 * 1024
 
 LANDMARK_INDEXES = {
+    "nose": 0,
+    "left_eye_inner": 1,
+    "left_eye": 2,
+    "left_eye_outer": 3,
+    "right_eye_inner": 4,
+    "right_eye": 5,
+    "right_eye_outer": 6,
+    "left_ear": 7,
+    "right_ear": 8,
+    "mouth_left": 9,
+    "mouth_right": 10,
     "left_shoulder": 11,
     "right_shoulder": 12,
+    "left_elbow": 13,
+    "right_elbow": 14,
+    "left_wrist": 15,
+    "right_wrist": 16,
+    "left_pinky": 17,
+    "right_pinky": 18,
+    "left_index": 19,
+    "right_index": 20,
+    "left_thumb": 21,
+    "right_thumb": 22,
     "left_hip": 23,
     "right_hip": 24,
     "left_knee": 25,
@@ -48,13 +71,18 @@ class InvalidPoseFrame(ValueError):
 @dataclass(frozen=True)
 class PoseAnalysis:
     landmarks: dict[str, PosePoint]
-    anchors: PoseAnchors
+    anchors: PoseAnchors | None
+    world_landmarks: dict[str, PoseWorldPoint] = field(default_factory=dict)
 
 
 def configured_pose_model_path() -> Path:
     override = os.getenv("POSE_MODEL_PATH", "").strip()
     if not override:
-        return DEFAULT_POSE_MODEL_PATH
+        return (
+            FULL_POSE_MODEL_PATH
+            if FULL_POSE_MODEL_PATH.is_file()
+            else DEFAULT_POSE_MODEL_PATH
+        )
     path = Path(override).expanduser()
     return path if path.is_absolute() else (Path.cwd() / path).resolve()
 
@@ -89,7 +117,7 @@ class PoseLandmarkerService:
             self._load_attempted = True
 
             if not self.model_path.is_file():
-                self.load_error = "Không tìm thấy pose_landmarker_lite.task"
+                self.load_error = f"Không tìm thấy model pose: {self.model_path.name}"
                 return
 
             try:
@@ -149,20 +177,43 @@ class PoseLandmarkerService:
         source = result.pose_landmarks[0]
         landmarks = {
             name: PosePoint(
-                x=min(max(float(source[index].x), 0.0), 1.0),
-                y=min(max(float(source[index].y), 0.0), 1.0),
+                x=float(source[index].x),
+                y=float(source[index].y),
                 z=float(source[index].z),
                 visibility=min(max(float(source[index].visibility), 0.0), 1.0),
             )
             for name, index in LANDMARK_INDEXES.items()
+            if all(
+                math.isfinite(float(getattr(source[index], axis)))
+                for axis in ("x", "y", "z", "visibility")
+            )
         }
+        world_source = getattr(result, "pose_world_landmarks", None)
+        world_landmarks = {}
+        if world_source:
+            world = world_source[0]
+            world_landmarks = {
+                name: PoseWorldPoint(
+                    x=float(world[index].x),
+                    y=float(world[index].y),
+                    z=float(world[index].z),
+                    visibility=landmarks[name].visibility,
+                )
+                for name, index in LANDMARK_INDEXES.items()
+                if name in landmarks
+                and index < len(world)
+                and all(
+                    math.isfinite(float(getattr(world[index], axis)))
+                    for axis in ("x", "y", "z")
+                )
+            }
         anchors = calculate_pose_anchors(
             landmarks,
             visibility_threshold=_confidence("POSE_VISIBILITY_THRESHOLD"),
         )
-        if anchors is None:
-            return None
-        return PoseAnalysis(landmarks=landmarks, anchors=anchors)
+        return PoseAnalysis(
+            landmarks=landmarks, anchors=anchors, world_landmarks=world_landmarks
+        )
 
     def close(self) -> None:
         landmarker = self.landmarker
@@ -172,5 +223,3 @@ class PoseLandmarkerService:
 
 
 pose_runtime = PoseLandmarkerService()
-pose_runtime.load_once()
-

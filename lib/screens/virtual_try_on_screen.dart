@@ -3,20 +3,28 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/api_config.dart';
 import '../models/pose_result.dart';
 import '../models/try_on_filter.dart';
 import '../painters/pose_skeleton_painter.dart';
 import '../services/camera_frame_service.dart';
+import '../services/body_profile_store.dart';
 import '../services/pose_websocket_service.dart';
 import '../utils/camera_coordinate_mapper.dart';
+import '../utils/camera_selection.dart';
 import '../utils/pose_smoother.dart';
 import '../widgets/try_on_filter_picker.dart';
+import '../widgets/body_profile_picker.dart';
 import '../widgets/virtual_clothing_overlay.dart';
+import 'garment_cutout_screen.dart';
+import 'garment_3d_preview_screen.dart';
 
 class VirtualTryOnScreen extends StatefulWidget {
-  const VirtualTryOnScreen({super.key});
+  const VirtualTryOnScreen({super.key, this.profileStore});
+
+  final BodyProfileStore? profileStore;
 
   @override
   State<VirtualTryOnScreen> createState() => _VirtualTryOnScreenState();
@@ -37,6 +45,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
   CameraController? _controller;
   int _cameraIndex = 0;
   bool _initializingCamera = false;
+  bool _switchingCamera = false;
+  bool _editingGarment = false;
+  bool _appIsActive = true;
+  bool _resumeRequested = false;
   bool _encodingFrame = false;
   bool _leaving = false;
   DateTime? _lastFrameAt;
@@ -53,6 +65,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
   bool _bodyVisible = false;
   TryOnFilterCategory _category = TryOnFilterCategory.top;
   TryOnFilter _selectedFilter = tryOnFilters.first;
+  final List<TryOnFilter> _customFilters = [];
+  bool _use3D = true;
 
   @override
   void initState() {
@@ -67,11 +81,20 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_initializeCamera());
-    } else if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
+      _appIsActive = true;
+      if (_editingGarment) return;
+      if (_initializingCamera) {
+        // Android tạm pause app khi hiện hộp thoại cấp quyền. Ghi nhớ để thử
+        // lại sau initialize thay vì dispose controller giữa chừng.
+        _resumeRequested = true;
+      } else {
+        unawaited(_initializeCamera());
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      unawaited(_pauseRealtime());
+      _appIsActive = false;
+      if (!_initializingCamera && !_editingGarment) unawaited(_pauseRealtime());
     }
   }
 
@@ -82,8 +105,15 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
     return ImageFormatGroup.yuv420;
   }
 
-  Future<void> _initializeCamera() async {
-    if (_initializingCamera || _leaving) return;
+  Future<void> _initializeCamera({bool tryOtherCameras = true}) async {
+    if (_initializingCamera || _leaving || _editingGarment) return;
+    final existingController = _controller;
+    if (existingController != null && existingController.value.isInitialized) {
+      if (!existingController.value.isStreamingImages) {
+        await _startImageStream(existingController);
+      }
+      return;
+    }
     _initializingCamera = true;
     try {
       await _disposeController();
@@ -95,16 +125,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
         );
         _cameraIndex = front >= 0 ? front : 0;
       }
-      final controller = CameraController(
-        _cameras[_cameraIndex],
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: _preferredFormat,
+      final controller = await _openFirstWorkingCamera(
+        tryOtherCameras: tryOtherCameras,
       );
-      _controller = controller;
-      await controller.initialize();
-      if (_leaving) {
+      if (_leaving || !_appIsActive) {
         await controller.dispose();
+        if (_controller == controller) _controller = null;
         return;
       }
       try {
@@ -127,7 +153,47 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
     } finally {
       _initializingCamera = false;
       if (mounted) setState(() {});
+      final shouldRetry =
+          _resumeRequested &&
+          _appIsActive &&
+          !(_controller?.value.isInitialized ?? false) &&
+          !_leaving;
+      _resumeRequested = false;
+      if (shouldRetry) unawaited(_initializeCamera());
     }
+  }
+
+  Future<CameraController> _openFirstWorkingCamera({
+    bool tryOtherCameras = true,
+  }) async {
+    CameraException? lastError;
+    final indexes = <int>[
+      _cameraIndex,
+      if (tryOtherCameras)
+        for (var index = 0; index < _cameras.length; index++)
+          if (index != _cameraIndex) index,
+    ];
+    for (final index in indexes) {
+      final controller = CameraController(
+        _cameras[index],
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: _preferredFormat,
+      );
+      _controller = controller;
+      try {
+        await controller.initialize();
+        _cameraIndex = index;
+        return controller;
+      } on CameraException catch (error) {
+        lastError = error;
+        _controller = null;
+        await controller.dispose();
+        if (_isCameraPermissionError(error)) rethrow;
+      }
+    }
+    throw lastError ??
+        CameraException('CameraUnavailable', 'Không có camera khả dụng.');
   }
 
   Future<void> _startImageStream(CameraController controller) async {
@@ -162,7 +228,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
     EncodedCameraFrame frame,
     CameraController sourceController,
   ) async {
-    if (_leaving || sourceController != _controller || !mounted) return;
+    if (_leaving ||
+        _editingGarment ||
+        sourceController != _controller ||
+        !mounted) {
+      return;
+    }
     final newSize = Size(frame.width.toDouble(), frame.height.toDouble());
     final camera = sourceController.description.lensDirection;
     final config = PoseSocketConfig(
@@ -206,7 +277,11 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
               : (_processingFps! * 0.7 + instantFps * 0.3);
         }
       }
-      _pose = smoothed;
+      // 3D orientation interpolates rigid body rotations itself. EMA on the
+      // landmark positions would shrink the shoulder span while turning.
+      _pose = _use3D && _selectedFilter.supports3D
+          ? (result.poseDetected ? result : null)
+          : smoothed;
       _bodyVisible = result.bodyVisible;
       if (result.poseDetected) _backendError = null;
     });
@@ -237,13 +312,55 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
   }
 
   Future<void> _switchCamera() async {
-    if (_cameras.length < 2 || _initializingCamera) return;
-    await _socket.disconnect();
-    _socketConfig = null;
-    _encodedFrameSize = null;
-    _smoother.reset();
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
-    await _initializeCamera();
+    if (_initializingCamera || _switchingCamera) return;
+    final currentController = _controller;
+    if (currentController == null || !currentController.value.isInitialized) {
+      return;
+    }
+    final targetIndex = oppositeCameraIndex(
+      _cameras,
+      currentController.description.lensDirection,
+    );
+    if (targetIndex == null) {
+      _setCameraError('Thiết bị không có camera trước/sau để chuyển đổi.');
+      return;
+    }
+
+    final previousIndex = _cameraIndex;
+    _switchingCamera = true;
+    if (mounted) setState(() => _cameraError = null);
+    try {
+      await _socket.disconnect();
+      _socketConfig = null;
+      _encodedFrameSize = null;
+      _pose = null;
+      _bodyVisible = false;
+      _smoother.reset();
+
+      // Nếu không giải phóng camera cũ, _initializeCamera sẽ thấy controller
+      // vẫn hoạt động rồi thoát sớm mà không mở camera mới.
+      await _disposeController();
+      _cameraIndex = targetIndex;
+      await _initializeCamera(tryOtherCameras: false);
+
+      final switchedController = _controller;
+      final switched =
+          switchedController != null &&
+          switchedController.value.isInitialized &&
+          switchedController.description.lensDirection !=
+              currentController.description.lensDirection;
+      if (!switched && _appIsActive && !_leaving) {
+        _cameraIndex = previousIndex;
+        await _disposeController();
+        await _initializeCamera(tryOtherCameras: false);
+        _setCameraError(
+          'Không thể mở camera còn lại. Camera ban đầu đã được khôi phục.',
+        );
+      }
+    } finally {
+      _switchingCamera = false;
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _reconnect() async {
@@ -279,6 +396,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
     setState(() => _cameraError = message);
   }
 
+  Future<void> _retryCamera() async {
+    if (_initializingCamera) return;
+    setState(() => _cameraError = null);
+    await _initializeCamera();
+  }
+
   ManualFilterTransform get _manualTransform =>
       _manualTransforms[_selectedFilter.id] ?? const ManualFilterTransform();
 
@@ -288,6 +411,123 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
       _category = category;
       _selectedFilter = filter;
     });
+  }
+
+  Future<void> _importGarment() async {
+    if (_editingGarment || _initializingCamera || _switchingCamera) return;
+    final category = _category;
+    setState(() => _editingGarment = true);
+    try {
+      // Gallery/editor use their own route; camera is released until returning.
+      await _pauseRealtime();
+      if (!mounted) return;
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked == null || !mounted) return;
+      if (await picked.length() > 10 * 1024 * 1024) {
+        throw const FormatException('Chọn ảnh quần áo nhỏ hơn 10 MB.');
+      }
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      var volume = 1.0;
+      final png = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(
+          builder: (_) => GarmentCutoutScreen(
+            bytes: bytes,
+            category: category,
+            onVolumeChanged: (value) => volume = value,
+          ),
+        ),
+      );
+      if (png == null || !mounted) return;
+      final filter = TryOnFilter.fromImage(
+        id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
+        category: category,
+        bytes: png,
+        templateAligned: true,
+        volume: volume,
+      );
+      setState(() {
+        // Giới hạn RAM: giữ tối đa một ảnh nhập cho mỗi loại trong phiên này.
+        for (final previous in _customFilters.where(
+          (item) => item.category == category,
+        )) {
+          _manualTransforms.remove(previous.id);
+          unawaited(MemoryImage(previous.imageBytes!).evict());
+        }
+        _customFilters.removeWhere((item) => item.category == category);
+        _customFilters.add(filter);
+        _selectedFilter = filter;
+        _category = category;
+        _filterEnabled = true;
+        _use3D = true;
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is FormatException
+                  ? error.message
+                  : 'Không chọn được ảnh. Hãy thử lại.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      _editingGarment = false;
+      if (mounted && !_leaving) {
+        setState(() {});
+        if (_appIsActive) await _initializeCamera();
+      }
+    }
+  }
+
+  void _removeCustomFilter() {
+    final id = _selectedFilter.id;
+    final bytes = _selectedFilter.imageBytes;
+    if (bytes != null) unawaited(MemoryImage(bytes).evict());
+    setState(() {
+      _customFilters.removeWhere((filter) => filter.id == id);
+      _manualTransforms.remove(id);
+      _selectedFilter = tryOnFilters.firstWhere(
+        (filter) => filter.category == _category,
+      );
+    });
+  }
+
+  Future<void> _preview3D() async {
+    if (_editingGarment ||
+        _initializingCamera ||
+        _switchingCamera ||
+        !_selectedFilter.supports3D) {
+      return;
+    }
+    setState(() => _editingGarment = true);
+    try {
+      await _pauseRealtime();
+      if (!mounted) return;
+      final volume = await Navigator.of(context).push<double>(
+        MaterialPageRoute(
+          builder: (_) => Garment3DPreviewScreen(filter: _selectedFilter),
+        ),
+      );
+      if (mounted && volume != null) {
+        setState(() {
+          _use3D = true;
+          _selectedFilter = _selectedFilter.withVolume(volume);
+          final index = _customFilters.indexWhere(
+            (f) => f.id == _selectedFilter.id,
+          );
+          if (index >= 0) _customFilters[index] = _selectedFilter;
+        });
+      }
+    } finally {
+      _editingGarment = false;
+      if (mounted && !_leaving) {
+        setState(() {});
+        if (_appIsActive) await _initializeCamera();
+      }
+    }
   }
 
   @override
@@ -315,6 +555,11 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
             children: <Widget>[
               if (initialized)
                 _buildCameraPreview(controller!, frameSize)
+              else if (_cameraError != null)
+                TryOnCameraUnavailable(
+                  message: _cameraError!,
+                  onRetry: _retryCamera,
+                )
               else
                 const Center(child: CircularProgressIndicator()),
               if (pose != null && _showSkeleton)
@@ -329,6 +574,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
                   filter: _selectedFilter,
                   mapper: mapper,
                   manualTransform: _manualTransform,
+                  use3D: _use3D,
                   onTransformChanged: (value) {
                     if (mounted) {
                       setState(
@@ -380,7 +626,16 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
                     _roundButton(
                       tooltip: 'Đổi camera',
                       icon: Icons.cameraswitch_outlined,
-                      onPressed: _cameras.length > 1 ? _switchCamera : null,
+                      onPressed:
+                          initialized &&
+                              !_initializingCamera &&
+                              !_switchingCamera &&
+                              hasOppositeCamera(
+                                _cameras,
+                                controller!.description.lensDirection,
+                              )
+                          ? _switchCamera
+                          : null,
                     ),
                   ],
                 ),
@@ -394,15 +649,21 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
                     connectionText: _connectionText,
                     connected: _socket.status == PoseSocketStatus.connected,
                     bodyVisible: _bodyVisible,
+                    poseDetected: pose?.poseDetected ?? false,
                     processingFps: _processingFps,
-                    errorMessage: _cameraError ?? _backendError,
+                    errorMessage: initialized
+                        ? _cameraError ?? _backendError
+                        : _backendError,
                   ),
                 ),
               ),
               Positioned(
                 left: 12,
                 right: 12,
-                bottom: 150 + MediaQuery.paddingOf(context).bottom,
+                bottom:
+                    210 +
+                    (_selectedFilter.supports3D ? 44 : 0) +
+                    MediaQuery.paddingOf(context).bottom,
                 child: const Text(
                   'Hình ảnh camera chỉ được xử lý tạm thời và không được lưu trữ.',
                   textAlign: TextAlign.center,
@@ -413,11 +674,40 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
                   ),
                 ),
               ),
+              if (widget.profileStore != null)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom:
+                      250 +
+                      (_selectedFilter.supports3D ? 44 : 0) +
+                      MediaQuery.paddingOf(context).bottom,
+                  child: Center(
+                    child: BodyProfilePicker(
+                      store: widget.profileStore!,
+                      dark: true,
+                    ),
+                  ),
+                ),
               Align(
                 alignment: Alignment.bottomCenter,
                 child: TryOnFilterPicker(
                   category: _category,
                   selectedFilter: _selectedFilter,
+                  customFilters: _customFilters,
+                  use3D: _use3D,
+                  on3DChanged: (value) => setState(() => _use3D = value),
+                  onPreview3D:
+                      _editingGarment || _initializingCamera || _switchingCamera
+                      ? null
+                      : _preview3D,
+                  onImport:
+                      _editingGarment || _initializingCamera || _switchingCamera
+                      ? null
+                      : _importGarment,
+                  onRemoveCustom: _selectedFilter.imageBytes == null
+                      ? null
+                      : _removeCustomFilter,
                   onCategorySelected: _selectCategory,
                   onFilterSelected: (filter) =>
                       setState(() => _selectedFilter = filter),
@@ -475,6 +765,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
   @override
   void dispose() {
     _leaving = true;
+    for (final filter in _customFilters) {
+      unawaited(MemoryImage(filter.imageBytes!).evict());
+    }
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_poseSubscription.cancel());
     unawaited(_stateSubscription.cancel());
@@ -486,9 +779,18 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen>
 
 String _cameraMessage(CameraException error) {
   return switch (error.code) {
-    'CameraAccessDenied' || 'CameraAccessDeniedWithoutPrompt' =>
-      'Bạn chưa cấp quyền camera. Hãy bật quyền trong Cài đặt.',
+    'CameraAccessDenied' => 'Bạn chưa cấp quyền camera. Hãy thử lại.',
     'CameraAccessRestricted' => 'Thiết bị đang hạn chế quyền sử dụng camera.',
+    'CameraAccessDeniedWithoutPrompt' =>
+      'Quyền camera đã bị từ chối. Hãy bật lại trong Cài đặt ứng dụng.',
+    'CameraUnavailable' =>
+      'Camera đang được ứng dụng khác sử dụng hoặc thiết bị không có camera.',
     _ => 'Không thể mở camera. Vui lòng thử lại.',
   };
+}
+
+bool _isCameraPermissionError(CameraException error) {
+  return error.code == 'CameraAccessDenied' ||
+      error.code == 'CameraAccessDeniedWithoutPrompt' ||
+      error.code == 'CameraAccessRestricted';
 }

@@ -8,6 +8,7 @@ class AnalysisPreferencesData {
     this.season = 'summer',
     this.style = 'casual',
     this.occasion = 'outing',
+    this.useCurrentWeather = false,
   });
 
   final String heightCm;
@@ -16,6 +17,7 @@ class AnalysisPreferencesData {
   final String season;
   final String style;
   final String occasion;
+  final bool useCurrentWeather;
 }
 
 abstract interface class AnalysisPreferencesStore {
@@ -24,23 +26,29 @@ abstract interface class AnalysisPreferencesStore {
 }
 
 class SharedPreferencesAnalysisStore implements AnalysisPreferencesStore {
+  SharedPreferencesAnalysisStore({String? userId})
+    : _prefix = userId == null ? '' : 'user_${userId}_';
+  final String _prefix;
   static const _heightKey = 'outfit_analysis_height_cm';
   static const _weightKey = 'outfit_analysis_weight_kg';
   static const _temperatureKey = 'outfit_analysis_temperature_c';
   static const _seasonKey = 'outfit_analysis_season';
   static const _styleKey = 'outfit_analysis_style';
   static const _occasionKey = 'outfit_analysis_occasion';
+  static const _weatherModeKey = 'outfit_analysis_current_weather';
 
   @override
   Future<AnalysisPreferencesData> load() async {
     final preferences = await SharedPreferences.getInstance();
     return AnalysisPreferencesData(
-      heightCm: preferences.getString(_heightKey) ?? '',
-      weightKg: preferences.getString(_weightKey) ?? '',
-      temperatureC: preferences.getString(_temperatureKey) ?? '28',
-      season: preferences.getString(_seasonKey) ?? 'summer',
-      style: preferences.getString(_styleKey) ?? 'casual',
-      occasion: preferences.getString(_occasionKey) ?? 'outing',
+      heightCm: preferences.getString('$_prefix$_heightKey') ?? '',
+      weightKg: preferences.getString('$_prefix$_weightKey') ?? '',
+      temperatureC: preferences.getString('$_prefix$_temperatureKey') ?? '28',
+      season: preferences.getString('$_prefix$_seasonKey') ?? 'summer',
+      style: preferences.getString('$_prefix$_styleKey') ?? 'casual',
+      occasion: preferences.getString('$_prefix$_occasionKey') ?? 'outing',
+      useCurrentWeather:
+          preferences.getBool('$_prefix$_weatherModeKey') ?? false,
     );
   }
 
@@ -48,12 +56,13 @@ class SharedPreferencesAnalysisStore implements AnalysisPreferencesStore {
   Future<void> save(AnalysisPreferencesData data) async {
     final preferences = await SharedPreferences.getInstance();
     await Future.wait(<Future<bool>>[
-      preferences.setString(_heightKey, data.heightCm),
-      preferences.setString(_weightKey, data.weightKg),
-      preferences.setString(_temperatureKey, data.temperatureC),
-      preferences.setString(_seasonKey, data.season),
-      preferences.setString(_styleKey, data.style),
-      preferences.setString(_occasionKey, data.occasion),
+      preferences.setString('$_prefix$_heightKey', data.heightCm),
+      preferences.setString('$_prefix$_weightKey', data.weightKg),
+      preferences.setString('$_prefix$_temperatureKey', data.temperatureC),
+      preferences.setString('$_prefix$_seasonKey', data.season),
+      preferences.setString('$_prefix$_styleKey', data.style),
+      preferences.setString('$_prefix$_occasionKey', data.occasion),
+      preferences.setBool('$_prefix$_weatherModeKey', data.useCurrentWeather),
     ]);
   }
 }

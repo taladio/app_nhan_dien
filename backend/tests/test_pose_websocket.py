@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routers.pose_websocket import create_pose_websocket_router
-from backend.schemas.pose_result import AnchorPoint, PoseAnchors, PosePoint
+from backend.schemas.pose_result import AnchorPoint, PoseAnchors, PosePoint, PoseWorldPoint
 from backend.services.pose_landmarker_service import InvalidPoseFrame, PoseAnalysis
 
 
@@ -50,6 +50,7 @@ def _analysis() -> PoseAnalysis:
     point = PosePoint(x=0.5, y=0.5, z=0, visibility=0.99)
     return PoseAnalysis(
         landmarks={"left_shoulder": point},
+        world_landmarks={"left_shoulder": PoseWorldPoint(x=-.2, y=-.5, z=.15, visibility=.99)},
         anchors=PoseAnchors(
             shoulder_center=AnchorPoint(x=0.5, y=0.3),
             shoulder_width=0.4,
@@ -110,6 +111,24 @@ def test_pose_response_and_frame_is_not_saved(tmp_path: Path) -> None:
     assert payload["pose_detected"] is True
     assert payload["body_visible"] is True
     assert payload["anchors"]["shoulder_width"] == 0.4
+    assert payload["world_landmarks"]["left_shoulder"]["x"] == -.2
+    assert payload["world_landmarks"]["left_shoulder"]["y"] == -.5
     assert processor.frames == [b"jpeg-kept-only-in-memory"]
     assert set(tmp_path.iterdir()) == before
 
+
+def test_partial_pose_still_returns_face_and_arm_points() -> None:
+    point = PosePoint(x=0.5, y=0.5, z=0, visibility=0.8)
+    analysis = PoseAnalysis(
+        landmarks={"nose": point, "left_elbow": point, "right_shoulder": point},
+        anchors=None,
+    )
+    with _client(FakePoseProcessor(analysis)).websocket_connect("/api/v1/pose/ws") as socket:
+        socket.send_json(CONFIG)
+        socket.send_bytes(b"jpeg-in-memory")
+        payload = socket.receive_json()
+
+    assert payload["pose_detected"] is True
+    assert payload["body_visible"] is False
+    assert "anchors" not in payload
+    assert set(payload["landmarks"]) == {"nose", "left_elbow", "right_shoulder"}

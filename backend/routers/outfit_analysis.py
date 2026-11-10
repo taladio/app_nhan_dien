@@ -1,42 +1,46 @@
-"""Endpoint kết hợp YOLO và đánh giá phối đồ OpenAI/fallback."""
+"""Endpoint kết hợp YOLO và đánh giá phối đồ bằng Gemini."""
 
 from __future__ import annotations
 
 import logging
+import json
 from typing import Any, Callable
 
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import ValidationError
 
 try:
     from ..schemas.outfit_analysis import (
         AnalysisContext,
         AnalysisPayload,
         DetectedItem,
+        Gender,
         Occasion,
         OutfitAnalysisResponse,
         Season,
         Style,
         UserProfile,
+        WeatherContext,
         finalize_evaluation,
     )
-    from ..services.openai_outfit_service import OpenAIOutfitService
-    from ..services.rule_based_outfit_service import evaluate_with_rules
+    from ..services.gemini_fashion_service import GeminiFashionService, GeminiServiceError
 except ImportError:  # Hỗ trợ `cd backend; uvicorn main:app`.
     from schemas.outfit_analysis import (
         AnalysisContext,
         AnalysisPayload,
         DetectedItem,
+        Gender,
         Occasion,
         OutfitAnalysisResponse,
         Season,
         Style,
         UserProfile,
+        WeatherContext,
         finalize_evaluation,
     )
-    from services.openai_outfit_service import OpenAIOutfitService
-    from services.rule_based_outfit_service import evaluate_with_rules
+    from services.gemini_fashion_service import GeminiFashionService, GeminiServiceError
 
 LOGGER = logging.getLogger(__name__)
 NO_DETECTION_MESSAGE = (
@@ -74,14 +78,22 @@ def create_outfit_analysis_router(
     @router.post("/analyze", response_model=OutfitAnalysisResponse)
     async def analyze_outfit(
         file: UploadFile = File(..., description="Ảnh JPEG hoặc PNG, tối đa 10 MB"),
-        height_cm: float = Form(..., gt=0, le=300),
-        weight_kg: float = Form(..., gt=0, le=500),
-        season: Season = Form(...),
-        temperature_c: float = Form(..., ge=-100, le=100),
+        height_cm: float | None = Form(None, gt=0, le=300),
+        weight_kg: float | None = Form(None, gt=0, le=500),
+        gender: Gender | None = Form(None),
+        season: Season | None = Form(None),
+        temperature_c: float | None = Form(None, ge=-100, le=100),
         style: Style = Form(...),
         occasion: Occasion = Form(...),
         confidence: float = Form(0.25, ge=0, le=1),
+        weather_json: str | None = Form(None),
     ) -> OutfitAnalysisResponse:
+        weather: WeatherContext | None = None
+        if weather_json is not None:
+            try:
+                weather = WeatherContext.model_validate(json.loads(weather_json))
+            except (json.JSONDecodeError, ValidationError) as error:
+                raise HTTPException(status_code=422, detail="Dữ liệu thời tiết không hợp lệ.") from error
         content_type = (file.content_type or "").split(";", maxsplit=1)[0].lower()
         if content_type not in {"image/jpeg", "image/jpg", "image/png"}:
             await file.close()
@@ -115,24 +127,36 @@ def create_outfit_analysis_router(
         items = [_to_detected_item(item) for item in detections]
         payload = AnalysisPayload(
             detected_items=items,
-            user_profile=UserProfile(height_cm=height_cm, weight_kg=weight_kg),
+            user_profile=UserProfile(
+                height_cm=height_cm, weight_kg=weight_kg, gender=gender
+            ),
             context=AnalysisContext(
-                season=season,
-                temperature_c=temperature_c,
+                season=None if weather is not None else season,
+                temperature_c=weather.temperature_c if weather is not None else temperature_c,
                 style=style,
                 occasion=occasion,
+                weather=weather,
             ),
         )
 
-        source = "openai"
+        source = "gemini"
+        evaluation = None
+        ai_error = None
+        service = None
         try:
-            service = OpenAIOutfitService.from_environment()
+            service = GeminiFashionService.from_environment()
             model_evaluation = await run_in_threadpool(service.evaluate, payload)
+            evaluation = finalize_evaluation(model_evaluation, payload)
+        except GeminiServiceError as error:
+            source = "unavailable"
+            ai_error = error.message
         except Exception as error:
-            # Chỉ log loại lỗi, không log request/header/API key hoặc nội dung người dùng.
-            LOGGER.warning("OpenAI không khả dụng; dùng fallback (%s)", type(error).__name__)
-            source = "fallback"
-            model_evaluation = await run_in_threadpool(evaluate_with_rules, payload)
+            LOGGER.warning("Gemini không khả dụng (%s)", type(error).__name__)
+            source = "unavailable"
+            ai_error = "Gemini tạm thời không phản hồi. Hãy thử lại."
+        finally:
+            if service is not None:
+                service.close()
 
         image_height, image_width = image.shape[:2]
         return OutfitAnalysisResponse(
@@ -141,7 +165,8 @@ def create_outfit_analysis_router(
             image_height=image_height,
             source=source,
             detected_items=items,
-            evaluation=finalize_evaluation(model_evaluation),
+            evaluation=evaluation,
+            ai_error=ai_error,
         )
 
     return router

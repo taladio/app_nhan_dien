@@ -28,17 +28,23 @@ class PoseConfig(BaseModel):
 
 
 class PosePoint(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
-    x: float = Field(ge=0.0, le=1.0)
-    y: float = Field(ge=0.0, le=1.0)
+    # Off-screen joints must remain outside the image, not snap to its edge.
+    x: float
+    y: float
     z: float
     visibility: float = Field(ge=0.0, le=1.0)
 
 
+class PoseWorldPoint(PosePoint):
+    """MediaPipe XYZ in metres, with origin at the hip midpoint."""
+
+
 class AnchorPoint(BaseModel):
-    x: float = Field(ge=0.0, le=1.0)
-    y: float = Field(ge=0.0, le=1.0)
+    model_config = ConfigDict(allow_inf_nan=False)
+    x: float
+    y: float
 
 
 class PoseAnchors(BaseModel):
@@ -63,6 +69,7 @@ class PoseResult(BaseModel):
     pose_detected: bool
     body_visible: bool
     landmarks: dict[str, PosePoint] = Field(default_factory=dict)
+    world_landmarks: dict[str, PoseWorldPoint] = Field(default_factory=dict)
     anchors: PoseAnchors | None = None
     message: str | None = None
 

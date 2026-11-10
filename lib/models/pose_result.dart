@@ -128,6 +128,7 @@ class PoseResult {
     required this.poseDetected,
     required this.bodyVisible,
     required this.landmarks,
+    this.worldLandmarks = const {},
     this.anchors,
     this.message,
   });
@@ -148,6 +149,13 @@ class PoseResult {
           PoseLandmark.fromJson(value as Map<String, dynamic>),
         ),
       ),
+      worldLandmarks: (json['world_landmarks'] as Map<String, dynamic>? ?? {})
+          .map(
+            (name, value) => MapEntry(
+              name,
+              PoseLandmark.fromJson(value as Map<String, dynamic>),
+            ),
+          ),
       anchors: rawAnchors == null ? null : PoseAnchors.fromJson(rawAnchors),
       message: json['message'] as String?,
     );
@@ -159,6 +167,9 @@ class PoseResult {
   final bool poseDetected;
   final bool bodyVisible;
   final Map<String, PoseLandmark> landmarks;
+
+  /// Metres, hip-centred, unmirrored camera coordinates. Never pixel coordinates.
+  final Map<String, PoseLandmark> worldLandmarks;
   final PoseAnchors? anchors;
   final String? message;
 }

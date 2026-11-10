@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:typed_data';
 
 enum TryOnFilterCategory { top, jacket, pants, skirt, dress, shoes }
 
@@ -18,23 +19,87 @@ class TryOnFilter {
     required this.id,
     required this.name,
     required this.category,
-    required this.assetPath,
+    this.assetPath = '',
+    this.imageBytes,
     required this.widthMultiplier,
     required this.heightMultiplier,
     this.offsetX = 0,
     this.offsetY = 0,
     this.defaultRotation = 0,
-  });
+    this.templateAligned = false,
+    this.volume = 1,
+  }) : assert(assetPath != '' || imageBytes != null);
+
+  factory TryOnFilter.fromImage({
+    required String id,
+    required TryOnFilterCategory category,
+    required Uint8List bytes,
+    bool templateAligned = false,
+    double volume = 1,
+  }) {
+    final preset = tryOnFilters.firstWhere(
+      (filter) => filter.category == category,
+    );
+    // Shoulder/hip locations in the editor silhouettes, rather than the
+    // transparent margins of the built-in product photographs.
+    final (width, height, offsetY) = switch (category) {
+      TryOnFilterCategory.top => (1 / .52, 1 / .85, -.025),
+      TryOnFilterCategory.jacket => (1 / .56, 1 / .85, -.025),
+      TryOnFilterCategory.pants => (1 / .76, 1 / .92, -.02),
+      TryOnFilterCategory.skirt => (2.0, 1.0, 0.0),
+      TryOnFilterCategory.dress => (1 / .36, 1 / .90, -.03),
+      TryOnFilterCategory.shoes => (
+        preset.widthMultiplier,
+        preset.heightMultiplier,
+        preset.offsetY,
+      ),
+    };
+    return TryOnFilter(
+      id: id,
+      name: '${category.label} từ ảnh',
+      category: category,
+      imageBytes: bytes,
+      templateAligned: templateAligned,
+      volume: volume.clamp(.4, 1.8),
+      widthMultiplier: templateAligned ? width : preset.widthMultiplier,
+      heightMultiplier: templateAligned ? height : preset.heightMultiplier,
+      offsetY: templateAligned ? offsetY : preset.offsetY,
+    );
+  }
 
   final String id;
   final String name;
   final TryOnFilterCategory category;
   final String assetPath;
+
+  /// Chỉ giữ trong phiên thử đồ; không ghi ảnh vào Firebase hay bộ nhớ máy.
+  final Uint8List? imageBytes;
   final double widthMultiplier;
   final double heightMultiplier;
   final double offsetX;
   final double offsetY;
   final double defaultRotation;
+  final bool templateAligned;
+  final double volume;
+
+  TryOnFilter withVolume(double value) => TryOnFilter(
+    id: id,
+    name: name,
+    category: category,
+    assetPath: assetPath,
+    imageBytes: imageBytes,
+    widthMultiplier: widthMultiplier,
+    heightMultiplier: heightMultiplier,
+    offsetX: offsetX,
+    offsetY: offsetY,
+    defaultRotation: defaultRotation,
+    templateAligned: templateAligned,
+    volume: value.clamp(.4, 1.8),
+  );
+
+  /// 3D UVs use the editor's pattern coordinates; legacy photos stay in 2D.
+  bool get supports3D =>
+      templateAligned && category != TryOnFilterCategory.shoes;
 }
 
 class ManualFilterTransform {

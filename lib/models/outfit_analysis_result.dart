@@ -1,10 +1,10 @@
 import 'detection_result.dart';
 
 enum OutfitAnalysisSource {
-  openai,
-  fallback;
+  gemini,
+  unavailable;
 
-  String get displayName => this == openai ? 'AI' : 'Đánh giá cơ bản';
+  String get displayName => this == gemini ? 'Gemini AI' : 'AI chưa khả dụng';
 }
 
 class DetectedOutfitItem {
@@ -109,9 +109,13 @@ class OutfitEvaluation {
     return OutfitEvaluation(
       overallScore: _requiredDouble(json, 'overall_score'),
       rating: _requiredString(json, 'rating'),
-      colorScore: _requiredDouble(json, 'color_score'),
-      seasonTemperatureScore: _requiredDouble(json, 'season_temperature_score'),
-      bodyProportionScore: _requiredDouble(json, 'body_proportion_score'),
+      colorScore: _nullableDouble(json, 'color_score'),
+      seasonTemperatureScore: json['season_temperature_score'] == null
+          ? null
+          : _requiredDouble(json, 'season_temperature_score'),
+      bodyProportionScore: json['body_proportion_score'] == null
+          ? null
+          : _requiredDouble(json, 'body_proportion_score'),
       styleScore: _requiredDouble(json, 'style_score'),
       occasionScore: _requiredDouble(json, 'occasion_score'),
       summary: _requiredString(json, 'summary'),
@@ -126,9 +130,9 @@ class OutfitEvaluation {
 
   final double overallScore;
   final String rating;
-  final double colorScore;
-  final double seasonTemperatureScore;
-  final double bodyProportionScore;
+  final double? colorScore;
+  final double? seasonTemperatureScore;
+  final double? bodyProportionScore;
   final double styleScore;
   final double occasionScore;
   final String summary;
@@ -137,14 +141,17 @@ class OutfitEvaluation {
   final List<String> recommendations;
   final SuggestedOutfit suggestedOutfit;
 
-  Map<String, double> get scores => <String, double>{
-    'overall': overallScore,
-    'color': colorScore,
-    'season': seasonTemperatureScore,
-    'body': bodyProportionScore,
-    'style': styleScore,
-    'occasion': occasionScore,
-  };
+  Map<String, double> get scores {
+    final values = <String, double>{
+      'overall': overallScore,
+      'season': ?seasonTemperatureScore,
+      'body': ?bodyProportionScore,
+      'style': styleScore,
+      'occasion': occasionScore,
+    };
+    if (colorScore != null) values['color'] = colorScore!;
+    return values;
+  }
 }
 
 class OutfitAnalysisResult {
@@ -155,6 +162,7 @@ class OutfitAnalysisResult {
     required this.source,
     required List<DetectedOutfitItem> detectedItems,
     required this.evaluation,
+    this.aiError,
   }) : detectedItems = List<DetectedOutfitItem>.unmodifiable(detectedItems) {
     if (imageWidth <= 0 || imageHeight <= 0 || detectedItems.isEmpty) {
       throw const FormatException('Kết quả phân tích thiếu dữ liệu.');
@@ -164,8 +172,8 @@ class OutfitAnalysisResult {
   factory OutfitAnalysisResult.fromJson(Map<String, dynamic> json) {
     final sourceValue = _requiredString(json, 'source');
     final source = switch (sourceValue) {
-      'openai' => OutfitAnalysisSource.openai,
-      'fallback' => OutfitAnalysisSource.fallback,
+      'gemini' => OutfitAnalysisSource.gemini,
+      'unavailable' => OutfitAnalysisSource.unavailable,
       _ => throw const FormatException('Nguồn đánh giá không hợp lệ.'),
     };
     final items = _requiredList(json, 'detected_items')
@@ -178,7 +186,10 @@ class OutfitAnalysisResult {
       imageHeight: _requiredInt(json, 'image_height'),
       source: source,
       detectedItems: items,
-      evaluation: OutfitEvaluation.fromJson(_requiredMap(json, 'evaluation')),
+      evaluation: json['evaluation'] == null
+          ? null
+          : OutfitEvaluation.fromJson(_requiredMap(json, 'evaluation')),
+      aiError: json['ai_error'] is String ? json['ai_error'] as String : null,
     );
   }
 
@@ -187,7 +198,8 @@ class OutfitAnalysisResult {
   final int imageHeight;
   final OutfitAnalysisSource source;
   final List<DetectedOutfitItem> detectedItems;
-  final OutfitEvaluation evaluation;
+  final OutfitEvaluation? evaluation;
+  final String? aiError;
 
   DetectionResponse asDetectionResponse() {
     return DetectionResponse(
@@ -269,6 +281,12 @@ double _requiredDouble(Map<String, dynamic> json, String key) {
     throw FormatException('Trường $key không phải số hợp lệ.');
   }
   return value.toDouble();
+}
+
+double? _nullableDouble(Map<String, dynamic> json, String key) {
+  if (!json.containsKey(key)) throw FormatException('Thiếu trường $key.');
+  if (json[key] == null) return null;
+  return _requiredDouble(json, key);
 }
 
 int _requiredInt(Map<String, dynamic> json, String key) {

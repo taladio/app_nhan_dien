@@ -128,8 +128,11 @@ def create_pose_websocket_router(
                         timestamp_ms=timestamp_ms,
                         processing_ms=processing_ms,
                         pose_detected=True,
-                        body_visible=analysis.anchors.body_visible,
+                        body_visible=(
+                            analysis.anchors.body_visible if analysis.anchors else False
+                        ),
                         landmarks=analysis.landmarks,
+                        world_landmarks=analysis.world_landmarks,
                         anchors=analysis.anchors,
                     )
                 await websocket.send_json(
@@ -142,4 +145,3 @@ def create_pose_websocket_router(
             return
 
     return router
-

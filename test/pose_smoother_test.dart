@@ -69,4 +69,20 @@ void main() {
       isNull,
     );
   });
+
+  test('keeps partial pose even when torso anchors are unavailable', () {
+    final smoother = PoseSmoother();
+    final partial = PoseResult(
+      frameId: 1,
+      timestampMs: 1,
+      processingMs: 10,
+      poseDetected: true,
+      bodyVisible: false,
+      landmarks: const <String, PoseLandmark>{
+        'left_elbow': PoseLandmark(x: 0.4, y: 0.3, z: 0, visibility: 0.9),
+      },
+    );
+    expect(smoother.update(partial)?.landmarks['left_elbow'], isNotNull);
+    expect(smoother.update(partial)?.anchors, isNull);
+  });
 }

@@ -50,7 +50,7 @@ class AuthService {
         'email': user.email ?? normalizedEmail,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
       return credential;
     } on FirebaseAuthException catch (error) {
       throw AuthServiceException(
@@ -101,6 +101,33 @@ class AuthService {
         authErrorMessage(error.code),
         code: error.code,
       );
+    }
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null || email.isEmpty) {
+      throw const AuthServiceException(
+        'Vui lòng đăng nhập lại để đổi mật khẩu.',
+      );
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: currentPassword),
+      );
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (error) {
+      throw AuthServiceException(switch (error.code) {
+        'wrong-password' ||
+        'invalid-credential' => 'Mật khẩu hiện tại không đúng.',
+        'requires-recent-login' =>
+          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+        _ => authErrorMessage(error.code),
+      }, code: error.code);
     }
   }
 }

@@ -6,6 +6,16 @@ import pytest
 
 from backend.schemas.pose_result import PosePoint
 from backend.services.pose_anchor_service import calculate_pose_anchors
+from backend.services.pose_landmarker_service import LANDMARK_INDEXES
+
+
+def test_all_33_pose_landmarks_include_face_arms_and_hands() -> None:
+    assert len(LANDMARK_INDEXES) == 33
+    assert LANDMARK_INDEXES["nose"] == 0
+    assert LANDMARK_INDEXES["left_shoulder"] == 11
+    assert LANDMARK_INDEXES["right_elbow"] == 14
+    assert LANDMARK_INDEXES["left_wrist"] == 15
+    assert LANDMARK_INDEXES["right_index"] == 20
 
 
 def _landmarks() -> dict[str, PosePoint]:
@@ -48,14 +58,18 @@ def test_calculates_centers_widths_and_angles() -> None:
     assert anchors.body_visible is True
 
 
-def test_missing_landmark_returns_none() -> None:
+def test_missing_ankle_keeps_torso_anchor_but_marks_partial_body() -> None:
     landmarks = _landmarks()
     del landmarks["left_ankle"]
 
-    assert calculate_pose_anchors(landmarks) is None
+    anchors = calculate_pose_anchors(landmarks)
+    assert anchors is not None
+    assert anchors.body_visible is False
+    assert anchors.left_leg_length == 0
+    assert anchors.right_leg_length > 0
 
 
-def test_low_visibility_landmark_returns_none() -> None:
+def test_low_visibility_foot_keeps_torso_anchor() -> None:
     landmarks = _landmarks()
     landmarks["right_foot_index"] = PosePoint(
         x=0.63,
@@ -64,5 +78,12 @@ def test_low_visibility_landmark_returns_none() -> None:
         visibility=0.2,
     )
 
-    assert calculate_pose_anchors(landmarks, visibility_threshold=0.5) is None
+    anchors = calculate_pose_anchors(landmarks, visibility_threshold=0.5)
+    assert anchors is not None
+    assert anchors.body_visible is False
 
+
+def test_missing_torso_landmark_has_no_anchor() -> None:
+    landmarks = _landmarks()
+    del landmarks["left_shoulder"]
+    assert calculate_pose_anchors(landmarks) is None

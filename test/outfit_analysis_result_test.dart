@@ -5,7 +5,7 @@ Map<String, dynamic> _payload() => <String, dynamic>{
   'filename': 'outfit.jpg',
   'image_width': 1080,
   'image_height': 1920,
-  'source': 'openai',
+  'source': 'gemini',
   'detected_items': <Object?>[
     <String, dynamic>{
       'detection_id': 'det_1',
@@ -45,12 +45,12 @@ void main() {
   test('parse response null-safe và chuyển sang detection overlay', () {
     final result = OutfitAnalysisResult.fromJson(_payload());
 
-    expect(result.source, OutfitAnalysisSource.openai);
-    expect(result.source.displayName, 'AI');
+    expect(result.source, OutfitAnalysisSource.gemini);
+    expect(result.source.displayName, 'Gemini AI');
     expect(result.detectedItems.single.primaryColor, 'Trắng');
     expect(result.detectedItems.single.secondaryColors, <String>['Xám']);
-    expect(result.evaluation.overallScore, 82.5);
-    expect(result.evaluation.suggestedOutfit.outerwear, isNull);
+    expect(result.evaluation?.overallScore, 82.5);
+    expect(result.evaluation?.suggestedOutfit.outerwear, isNull);
 
     final detectionResponse = result.asDetectionResponse();
     expect(detectionResponse.imageWidth, 1080);
@@ -71,5 +71,17 @@ void main() {
       () => OutfitAnalysisResult.fromJson(invalidScore),
       throwsFormatException,
     );
+  });
+
+  test('Gemini lỗi vẫn giữ nhãn YOLO và không có gợi ý giả', () {
+    final payload = _payload()
+      ..['source'] = 'unavailable'
+      ..['evaluation'] = null
+      ..['ai_error'] = 'Gemini tạm thời không phản hồi.';
+    final result = OutfitAnalysisResult.fromJson(payload);
+    expect(result.source, OutfitAnalysisSource.unavailable);
+    expect(result.detectedItems, hasLength(1));
+    expect(result.evaluation, isNull);
+    expect(result.aiError, contains('Gemini'));
   });
 }

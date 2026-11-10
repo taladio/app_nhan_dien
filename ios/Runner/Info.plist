@@ -34,6 +34,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Ứng dụng cần camera để chụp ảnh và nhận diện trang phục theo thời gian thực.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần vị trí hiện tại để lấy thời tiết và gợi ý phối đồ.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ứng dụng cần truy cập thư viện ảnh để chọn ảnh trang phục.</string>
 	<key>UIApplicationSceneManifest</key>

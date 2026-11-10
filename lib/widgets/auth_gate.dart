@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../screens/auth/login_page.dart';
 import '../screens/auth/register_page.dart';
-import '../screens/outfit_analysis_screen.dart';
 import '../services/auth_service.dart';
+import '../services/body_profile_store.dart';
+import '../services/chat_history_store.dart';
+import '../services/analysis_preferences.dart';
+import 'app_home.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, this.authService});
@@ -48,7 +51,21 @@ class _AuthGateState extends State<AuthGate> {
 
         final user = snapshot.data;
         if (user != null) {
-          return OutfitAnalysisScreen(onSignOut: _signOut);
+          return AppHome(
+            key: ValueKey<String>(user.uid),
+            onSignOut: _signOut,
+            accountName: user.displayName?.trim().isNotEmpty == true
+                ? user.displayName!.trim()
+                : (user.email?.split('@').first ?? 'Người dùng'),
+            accountEmail: user.email ?? '',
+            onChangePassword: (current, next) => _authService.changePassword(
+              currentPassword: current,
+              newPassword: next,
+            ),
+            profileStore: FirestoreBodyProfileStore(user.uid),
+            chatHistoryStore: SharedPreferencesChatHistoryStore(user.uid),
+            preferencesStore: SharedPreferencesAnalysisStore(userId: user.uid),
+          );
         }
         if (_showRegisterPage) {
           return RegisterPage(
