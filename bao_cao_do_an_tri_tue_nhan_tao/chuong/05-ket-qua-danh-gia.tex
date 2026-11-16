@@ -1,0 +1,152 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 5 — KẾT QUẢ VÀ ĐÁNH GIÁ
+% ---------------------------------------------------------------------
+\chapter{Kết quả và đánh giá}
+\label{ch:ketqua}
+
+\begin{muctieu}
+Chương này đối chiếu các mục tiêu của đồ án, xác định độ đo đánh giá và nêu
+những giới hạn có thể khẳng định từ phạm vi đã chọn.
+\end{muctieu}
+
+\section{Kết quả đạt được}
+
+Thư mục \code{AI\_Fashion\_Project} cung cấp notebook, checkpoint, cấu hình
+và nhật ký cho các lần chạy V1, V2 và V3. Nhờ đó có thể xác nhận thành phần
+nhận diện đã được huấn luyện theo bài toán phát hiện đối tượng 21 lớp và đã
+lưu các checkpoint \code{best.pt}. V2 có kết quả trên tập test riêng; V3 có
+kết quả validation và các biểu đồ do Ultralytics sinh ra.
+
+Mục tiêu ``độ chính xác 80\%'' ban đầu không tương ứng trực tiếp với chỉ số
+của bộ phát hiện. Chỉ số tốt nhất ghi nhận cho V3 full là mAP@0,5:0,95 bằng
+36,69\% trên validation, nên chưa có bằng chứng để tuyên bố đạt mục tiêu
+80\%. Bộ kiểm thử backend đạt 104/104; bộ Flutter có 139 test đạt và 6 test
+widget lỗi. Phạm vi thực nghiệm hiện tại chưa bao gồm phép đo thời gian API
+trên thiết bị Android thật.
+
+\section{Độ đo đánh giá}
+
+Đối với bộ phát hiện đối tượng, precision và recall được tính theo
+Công thức~\eqref{eq:precision-recall}, trong đó TP, FP và FN lần lượt là dự
+đoán đúng, dự đoán sai và đối tượng bị bỏ sót:
+\begin{equation}
+\mathrm{Precision}=\frac{TP}{TP+FP},\qquad
+\mathrm{Recall}=\frac{TP}{TP+FN}.
+\label{eq:precision-recall}
+\end{equation}
+
+Average Precision là diện tích dưới đường cong precision--recall của một
+lớp. mAP là trung bình AP trên các lớp; báo cáo dùng mAP@0,5 và
+mAP@0,5:0,95 theo đúng tệp \code{results.csv} của Ultralytics.
+
+Ngoài chất lượng nhận diện, thời gian từ lúc gửi yêu cầu đến khi nhận kết quả
+là độ đo hiệu năng phù hợp cho hệ thống. Chức năng gợi ý có thể được đánh giá
+qua tỉ lệ phương án hợp lệ, số kết quả trùng và đánh giá thủ công của người
+dùng; chức năng thử đồ 2D được xem xét theo khả năng thao tác và độ ổn định
+của lớp ảnh. Các độ đo này chưa được thu thập thành một bộ số liệu định lượng
+trong phạm vi thực nghiệm của báo cáo.
+
+Bảng~\ref{tab:ketqua} tổng hợp trực tiếp các tệp \code{results.csv} và đầu
+ra đánh giá trong notebook. Các dòng không cùng tập dữ liệu, vì vậy chỉ phản
+ánh tiến trình thực nghiệm và không được dùng như một so sánh tuyệt đối giữa
+các kiến trúc.
+
+\begin{table}[H]
+\centering
+\caption{Kết quả được ghi nhận ở các phiên bản YOLO.}
+\label{tab:ketqua}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}}l >{\raggedright\arraybackslash}X c c c c}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Lần chạy & \bfseries\color{daumaroon}Tập đánh giá & \bfseries\color{daunavy}Precision & \bfseries\color{daunavy}Recall & \bfseries\color{daumaroon}mAP@0,5 & \bfseries\color{daumaroon}mAP@0,5:0,95 \\
+\midrule
+V1, epoch 1 & Val. & 75,55\% & 26,56\% & 23,41\% & 15,98\% \\
+V2, checkpoint tốt nhất & test V2 & 54,46\% & 39,95\% & 42,33\% & 30,01\% \\
+V3 full, epoch 19 & Val. & 60,31\% & 51,03\% & 50,11\% & 36,69\% \\
+V3, 5 epoch tiếp tục & Val. & 55,18\% & 49,19\% & 49,53\% & 36,10\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Đường cong loss và các độ đo của năm epoch tiếp tục được trình bày ở
+Hình~\ref{fig:v3-results}. Ma trận nhầm lẫn chuẩn hoá tương ứng ở
+Hình~\ref{fig:v3-confusion}, còn một lô dự đoán validation được minh hoạ ở
+Hình~\ref{fig:v3-predictions}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{ai-training/v3-results.png}
+\caption{Loss và độ đo của năm epoch fine-tune cuối ở V3.}
+\label{fig:v3-results}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{ai-training/v3-confusion-matrix-normalized.png}
+\caption{Ma trận nhầm lẫn chuẩn hoá của V3 trên tập validation.}
+\label{fig:v3-confusion}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{ai-training/v3-validation-predictions.jpg}
+\caption{Một lô dự đoán của V3 trên tập validation.}
+\label{fig:v3-predictions}
+\end{figure}
+
+Kết quả V3 trong báo cáo được lấy từ tập validation vì notebook chưa lưu đầu
+ra đánh giá trên tập test kết hợp. Do đó, Bảng~\ref{tab:ketqua} chỉ phản ánh
+các kết quả đã được ghi nhận và không suy rộng sang hiệu năng trên tập test
+hoặc thời gian phản hồi của thiết bị triển khai.
+
+\section{Bàn luận}
+
+V2 cải thiện rõ mAP so với kết quả V1 được lưu, nhưng V1 mới chỉ có một epoch
+trong \code{results.csv} nên phép so sánh này không đại diện cho tiềm năng
+của cấu hình 60 epoch. Với V3 full, mAP@0,5:0,95 tốt nhất đạt 36,69\% ở epoch
+19. Năm epoch tiếp tục làm train loss giảm, nhưng mAP không vượt kết quả tốt
+nhất trước đó; điều này cho thấy việc kéo dài huấn luyện từ \code{last.pt}
+không tự động cải thiện khả năng tổng quát hoá.
+
+Ma trận ở Hình~\ref{fig:v3-confusion} cho thấy một số lớp có đường chéo cao,
+chẳng hạn hat khoảng 0,86, shoe và sunglass khoảng 0,88. Ngược lại, coat,
+belt, trousers, shoesClassic và shoesSports có tỉ lệ đúng thấp; glasses và
+zipper có quá ít mẫu validation để đưa ra kết luận ổn định. Hình
+~\ref{fig:v3-predictions} cũng cho thấy mô hình có thể phát hiện đúng áo,
+giày và quần trên ảnh sản phẩm, nhưng vẫn sinh hộp sai trên ảnh quảng cáo,
+ảnh ghép và trường hợp có nhiều món đồ.
+
+Với gợi ý phối đồ, kết quả do Gemini sinh từ hồ sơ và bối cảnh, không phải
+thuật toán lấy tối đa ba bộ đồ trong tủ đồ. Báo cáo mới xác nhận luồng xử lý
+và kết quả minh hoạ, chưa có khảo sát người dùng để định lượng tính phù hợp
+và tính ổn định của phản hồi. Với thử đồ, các test tự động đã kiểm tra ánh xạ
+và biến đổi; sai lệch vị trí trên camera thật khi tư thế, ánh sáng và khoảng
+cách thay đổi chưa được lượng hoá.
+
+\section{Hạn chế}
+
+Phạm vi ở Chương~\ref{ch:modau} cho thấy hệ thống chỉ nhận diện một trang
+phục chính và chưa xác định thương hiệu, chất liệu hoặc kích cỡ chính xác.
+Chức năng phân tích dựa trên metadata YOLO và bối cảnh; chức năng Gợi ý không
+dùng ảnh, không dùng tủ đồ và phụ thuộc vào Gemini. Hệ thống chưa học sở thích
+cá nhân từ phản hồi dài hạn và chưa có bộ dữ liệu chuẩn để chấm chất lượng tư
+vấn.
+
+Thử đồ bằng lớp ảnh 2D không tái tạo độ rủ, nếp gấp, che khuất, ánh sáng hay
+biến dạng theo cơ thể. Người dùng vẫn phải điều chỉnh vị trí, kích thước và
+góc xoay. Ứng dụng chủ yếu hướng tới Android, chưa được mô tả như một hệ
+thống thương mại và chưa tích hợp thanh toán.
+
+Dữ liệu 21 lớp mất cân bằng mạnh: trong validation V3, shirt và tshirt có
+hơn 1.500 đối tượng mỗi lớp, trong khi boat và zipper chỉ có hai đối tượng,
+glasses có chín đối tượng. Một số nhãn của bộ dữ liệu cũ trộn detection với
+segmentation hoặc có toạ độ ngoài miền chuẩn hoá; Ultralytics đã bỏ qua 148
+ảnh train và 20 ảnh validation. Ngoài ra, các ánh xạ
+\code{Rompers\_Jumpsuits} sang dress và \code{Suiting} sang jacket chỉ là
+xấp xỉ ngữ nghĩa.
+
+Đánh giá hiện tại chưa có benchmark thời gian phản hồi trên thiết bị thật.
+Sáu test widget Flutter chưa đồng bộ với giao diện hiện hành, và quy tắc bảo
+mật Firestore mới được đối chiếu ở mức cấu hình, chưa có biên bản kiểm thử
+chéo bằng hai tài khoản độc lập. Đây là các giới hạn của kết quả kiểm thử,
+không được tính là chức năng đã xác nhận hoàn toàn.

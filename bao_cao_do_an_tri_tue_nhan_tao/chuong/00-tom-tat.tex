@@ -1,0 +1,37 @@
+% ---------------------------------------------------------------------
+%  TÓM TẮT
+% ---------------------------------------------------------------------
+\begin{abstract}
+
+Việc lựa chọn trang phục phù hợp thường đòi hỏi người dùng cân nhắc đồng
+thời loại quần áo, màu sắc, phong cách và hoàn cảnh sử dụng. Đồ án tập trung
+xây dựng hệ thống gợi ý phối đồ trên thiết bị di động nhằm hỗ trợ người dùng
+nhận diện trang phục từ ảnh, quản lý tủ đồ cá nhân và lựa chọn các món đồ có
+khả năng kết hợp với nhau. Hệ thống được định hướng gồm ứng dụng Flutter,
+dịch vụ xử lý trí tuệ nhân tạo thông qua API và Firebase để lưu thông tin
+người dùng, quần áo cùng các kết quả yêu thích.
+
+Đầu vào của chức năng nhận diện là ảnh chứa một trang phục chính; đầu ra là
+loại quần áo dự đoán và độ tin cậy. Trên cơ sở loại trang phục, màu sắc,
+phong cách và dữ liệu trong tủ đồ, hệ thống dự kiến trả về tối đa ba phương
+án phối đồ, đồng thời hạn chế kết quả trùng lặp. Đồ án cũng giới hạn chức
+năng thử trang phục ảo ở kỹ thuật ghép ảnh hai chiều: ảnh quần áo có nền
+trong suốt được đặt lên ảnh người dùng và có thể điều chỉnh vị trí, kích
+thước, góc xoay. Cách tiếp cận này phù hợp với phạm vi học phần và không
+được xem là mô hình sinh ảnh hay mô phỏng vật lý của vải.
+
+Thành phần nhận diện sử dụng mô hình phát hiện đối tượng YOLO26n và giữ cố
+định 21 lớp quần áo. Dữ liệu huấn luyện kết hợp 11.926 ảnh xuất từ Roboflow
+với 52.712 ảnh DeepFashion In-shop; trong đó 52.711 ảnh DeepFashion được
+chuyển thành công sang định dạng YOLO. Tập dữ liệu chuẩn bị cho phiên bản V3
+gồm 59.463 ảnh huấn luyện, 6.902 ảnh xác thực và 6.620 ảnh kiểm thử. Ở lần
+fine-tune cuối, mô hình đạt precision 55,18\%, recall 49,19\%, mAP@0,5 là
+49,53\% và mAP@0,5:0,95 là 36,10\% trên tập xác thực. Thời gian phản hồi API
+trên thiết bị Android thật chưa nằm trong phạm vi số liệu của lần chạy tích
+hợp được sử dụng trong báo cáo.
+
+\vspace{0.8em}
+\noindent\textbf{Từ khoá:} gợi ý phối đồ, nhận diện quần áo, thị giác máy
+tính, Flutter, thử trang phục ảo.
+
+\end{abstract}

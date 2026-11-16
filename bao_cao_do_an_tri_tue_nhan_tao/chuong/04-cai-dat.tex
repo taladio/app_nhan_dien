@@ -1,0 +1,354 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 4 — CÀI ĐẶT VÀ THỬ NGHIỆM
+% ---------------------------------------------------------------------
+\chapter{Cài đặt và thử nghiệm}
+\label{ch:caidat}
+
+\begin{muctieu}
+Chương này mô tả môi trường triển khai, trách nhiệm của các thành phần, giao
+diện đã cài đặt và kết quả kiểm thử hệ thống.
+\end{muctieu}
+
+\section{Môi trường triển khai}
+
+Ứng dụng \code{app\_nhan\_dien} dùng Flutter 3.47.1 stable và Dart 3.13.1.
+Mã nguồn có \code{FirebaseOptions} cho Android, iOS, Web và Windows; phạm vi
+cài đặt, chạy thử và kiểm thử của báo cáo tập trung vào Android. Firebase
+Authentication hỗ trợ xác thực email/mật khẩu~\cite{FirebaseAuthFlutter}.
+Cloud Firestore tổ chức dữ liệu theo tài liệu và collection~\cite{FirestoreDataModel};
+trong mã dự án, dịch vụ này lưu tài liệu \code{users/\{uid\}} và trường hồ sơ cơ thể. Các tuỳ chọn phân tích và lịch
+sử hỏi đáp được lưu cục bộ bằng \code{shared\_preferences} 2.5.5. Thành phần
+trí tuệ nhân tạo được truy cập qua FastAPI 0.141.1 chạy bằng Uvicorn 0.52.4.
+
+Thông tin trên Firebase Console được đối chiếu với cấu hình và lời gọi dịch
+vụ trong mã nguồn, kết quả trình bày ở Bảng~\ref{tab:cauhinh-firebase}. Cách
+đối chiếu này tách biệt dịch vụ đã đăng ký trên Console với dịch vụ thật sự
+được ứng dụng gọi trong phiên bản hiện tại.
+
+\begin{table}[H]
+\centering
+\caption{Cấu hình dự án Firebase tại thời điểm đối chiếu ngày 11/11/2026.}
+\label{tab:cauhinh-firebase}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}\raggedright\arraybackslash}p{3.4cm} >{\raggedright\arraybackslash}X}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Hạng mục & \bfseries\color{daumaroon}Cấu hình và trạng thái sử dụng \\
+\midrule
+Dự án và gói dịch vụ & Tên hiển thị \code{ai-fashion-project}, Project ID \code{ai-fashion-project-6fa98}; gói Spark (no-cost). \\
+Ứng dụng đã đăng ký & Android \code{com.example.app\_nhan\_dien}, iOS \code{com.example.appNhanDien} và hai cấu hình Web. Các định danh này khớp với \code{firebase\_options.dart} và \code{google-services.json}. \\
+Authentication & Email/Password đã bật. Mã Flutter thực hiện đăng ký, đăng nhập, đăng xuất, đặt lại và đổi mật khẩu bằng Firebase Auth. Tên miền được uỷ quyền gồm \code{localhost}, \code{ai-fashion-project-6fa98.firebaseapp.com} và \code{ai-fashion-project-6fa98.web.app}. \\
+Cloud Firestore & Cơ sở dữ liệu Native đặt tại \code{nam5}. Ứng dụng đọc/ghi hồ sơ tại \code{users/\{uid\}}; Rules chỉ cho người đã xác thực thao tác tài liệu của chính mình và subcollection \code{wardrobe}. \\
+Google Analytics & Firebase Console đã liên kết Property ID \code{553061587}; cấu hình Web có Measurement ID. Tuy nhiên, mã Flutter không khai báo \code{firebase\_analytics} và chưa có lời gọi ghi sự kiện, nên báo cáo không xem Analytics là chức năng đã triển khai. \\
+Firebase AI Logic & Global Context đã được cấu hình ở vùng \code{global} trên Console. Phiên bản hiện tại chưa dùng Firebase AI SDK; Flutter gửi HTTP đến FastAPI, sau đó backend gọi Gemini bằng thư viện \code{google-genai}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Môi trường huấn luyện được ghi nhận từ notebook Google Colab: một GPU Tesla
+T4, PyTorch 2.11.0+cu130 và CUDA khả dụng. Dữ liệu được sao chép từ Google
+Drive sang \code{/content} trước khi huấn luyện để giảm độ trễ đọc hàng nghìn
+tệp nhỏ. Môi trường triển khai cục bộ dùng Python 3.13.7, Ultralytics 8.4.135,
+PyTorch 2.13.0 và MediaPipe 1.0.1; model mặc định nằm tại
+\code{backend/models/best.pt}.
+
+Các biến cấu hình quan trọng gồm \code{MODEL\_PATH},
+\code{POSE\_MODEL\_PATH}, \code{GEMINI\_API\_KEY},
+\code{GEMINI\_MODEL} và \code{GEMINI\_TIMEOUT\_SECONDS}. Khóa API không được
+ghi vào mã nguồn. Báo cáo chưa thực hiện benchmark trên một cấu hình cố định
+gồm CPU, RAM, Android SDK và thiết bị thật, vì vậy không công bố số liệu thời
+gian phản hồi theo phần cứng.
+
+\section{Các thành phần chính}
+
+Ứng dụng di động chịu trách nhiệm xác thực, quản lý hồ sơ cơ thể, nhận ảnh,
+gửi yêu cầu phân tích, lấy gợi ý, hỏi đáp và hiển thị thử đồ theo camera.
+Giao diện chính có bốn tab: Phân tích, Gợi ý, Hỏi đáp và Cá nhân. Các thao
+tác mạng có trạng thái đang xử lý và lỗi; lịch sử hỏi đáp được giữ theo tài
+khoản ở bộ nhớ cục bộ.
+
+Dịch vụ API tiếp nhận JPG/PNG tối đa 10 MB, kiểm tra MIME và nội dung ảnh,
+sau đó gọi checkpoint YOLO 21 lớp. Kết quả giữ nhiều hộp hợp lệ, gồm lớp gốc,
+nhóm chuẩn hoá, màu chính/phụ, độ tin cậy và toạ độ. Endpoint phân tích dùng
+confidence mặc định 0,25 và IoU 0,45, rồi gửi metadata cùng hồ sơ/bối cảnh
+đến Gemini. Các endpoint gợi ý và hỏi đáp là luồng không ảnh, không dùng kết
+quả YOLO hay dữ liệu tủ đồ.
+
+Firebase Authentication quản lý phiên đăng nhập. Firestore lưu hồ sơ tài
+khoản và danh sách hồ sơ cơ thể trong tài liệu \code{users/\{uid\}}. Security
+Rules cho phép chủ tài khoản đọc/ghi subcollection
+\code{wardrobe/\{itemId\}}, nhưng mã Flutter hiện chưa triển khai màn hình và
+service tủ đồ; không có kho ảnh hoặc danh sách yêu thích. Dữ liệu ảnh gửi đến
+backend chỉ tồn tại trong request và không được ghi ra ổ đĩa.
+
+MediaPipe Pose Landmarker cung cấp các điểm mốc cơ thể từ ảnh hoặc video
+~\cite{MediaPipePose}. Trong hệ thống, chức năng thử đồ gửi frame JPEG qua
+WebSocket đến Pose Landmarker. Backend trả landmark và điểm neo; Flutter làm
+mượt tư thế rồi ghép lớp trang
+phục theo vùng thân trên, thân dưới, váy hoặc bàn chân. Người dùng có thể dịch
+chuyển, co giãn, xoay và đặt lại lớp ảnh; frame không được lưu ở backend.
+
+Mã huấn luyện xác nhận quy trình nạp \code{yolo26n.pt}, chuyển annotation
+DeepFashion sang YOLO, kiểm tra thứ tự 21 lớp, fine-tune và lưu
+\code{best.pt}. Mã triển khai nạp checkpoint này một lần khi backend khởi
+động, tự chọn \code{cuda:0} nếu CUDA khả dụng và dùng CPU trong trường hợp
+còn lại. Nếu Gemini thiếu khóa, hết hạn mức hoặc lỗi mạng, API vẫn trả kết
+quả YOLO với \code{source=unavailable} thay vì tạo đánh giá thay thế giả.
+
+\section{Giao diện và demo}
+
+Luồng giao diện thực tế gồm đăng ký/đăng nhập, phân tích ảnh từ camera hoặc
+thư viện, gợi ý theo bối cảnh, hỏi đáp tiếp nối, quản lý hồ sơ cá nhân và thử
+trang phục theo camera. Kết quả phân tích hiển thị nhãn, màu, độ tin cậy,
+điểm đánh giá và đề xuất điều chỉnh khi Gemini khả dụng.
+
+Màn hình xác thực trong Hình~\ref{fig:ui-auth} cung cấp hai luồng tạo tài
+khoản và đăng nhập bằng email/mật khẩu. Sau khi đăng nhập, người dùng truy
+cập bốn nhóm chức năng chính bằng thanh điều hướng dưới màn hình.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-login.jpg}
+
+  \small (a) Đăng nhập tài khoản
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-register.jpg}
+
+  \small (b) Đăng ký tài khoản
+\end{minipage}
+\caption{Giao diện xác thực người dùng bằng email và mật khẩu.}
+\label{fig:ui-auth}
+\end{figure}
+
+Khi quên mật khẩu, người dùng nhập email đã đăng ký và yêu cầu Firebase gửi
+liên kết đặt lại. Hình~\ref{fig:ui-password-reset} thể hiện hộp nhập email và
+thông báo xác nhận sau khi yêu cầu được gửi thành công.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-password-reset-dialog.jpg}
+
+  \small (a) Nhập email đặt lại mật khẩu
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-password-reset-sent.jpg}
+
+  \small (b) Xác nhận đã gửi email
+\end{minipage}
+\caption{Luồng yêu cầu đặt lại mật khẩu qua email.}
+\label{fig:ui-password-reset}
+\end{figure}
+
+Đối với tài khoản đang đăng nhập, chức năng đổi mật khẩu yêu cầu nhập lại mật
+khẩu hiện tại trước khi lưu mật khẩu mới. Hình~\ref{fig:ui-password-change}
+minh hoạ biểu mẫu đổi mật khẩu và thông báo hoàn tất trên màn hình tài khoản.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-password-change-dialog.jpg}
+
+  \small (a) Nhập mật khẩu hiện tại và mật khẩu mới
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-password-change-success.jpg}
+
+  \small (b) Thông báo đổi mật khẩu thành công
+\end{minipage}
+\caption{Luồng đổi mật khẩu của tài khoản đang đăng nhập.}
+\label{fig:ui-password-change}
+\end{figure}
+
+Luồng phân tích bắt đầu từ màn hình chọn ảnh hoặc chụp ảnh. Sau khi backend
+xử lý, ứng dụng vẽ hộp giới hạn cùng lớp trang phục, màu và độ tin cậy như
+Hình~\ref{fig:ui-detection}. Đây là bằng chứng giao diện cho thấy kết quả YOLO
+đã được trả về và hiển thị trên ảnh đầu vào.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-analysis-input.jpg}
+
+  \small (a) Chọn nguồn ảnh và hồ sơ
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-analysis-detection.jpg}
+
+  \small (b) Hiển thị kết quả nhận diện
+\end{minipage}
+\caption{Luồng tiếp nhận ảnh và nhận diện trang phục bằng YOLO.}
+\label{fig:ui-detection}
+\end{figure}
+
+Phần đánh giá sau nhận diện được minh hoạ ở
+Hình~\ref{fig:ui-analysis-result}. Ứng dụng trình bày điểm tổng hợp, các tiêu
+chí màu sắc, thời tiết, phong cách và hoàn cảnh; đồng thời nêu điểm mạnh,
+điểm cần điều chỉnh và khuyến nghị phối bổ sung. Trường hợp trong ảnh cũng
+cho thấy hệ thống phát hiện sự không khớp giữa nhãn chân váy và hồ sơ giới
+tính Nam thay vì bỏ qua bối cảnh người dùng.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-analysis-score.jpg}
+
+  \small (a) Điểm và tiêu chí đánh giá
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-analysis-recommendations.jpg}
+
+  \small (b) Điểm cần điều chỉnh và khuyến nghị
+\end{minipage}
+\caption{Kết quả đánh giá và khuyến nghị sau khi phân tích trang phục.}
+\label{fig:ui-analysis-result}
+\end{figure}
+
+Với luồng gợi ý không cần ảnh, người dùng chọn hồ sơ, nguồn thời tiết, phong
+cách và hoàn cảnh. Hình~\ref{fig:ui-suggestion} cho thấy dữ liệu Open-Meteo
+được hiển thị trước khi gửi yêu cầu và kết quả Gemini trả về dưới dạng mô tả
+bộ đồ cùng các cách điều chỉnh phù hợp.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-suggestion-context.jpg}
+
+  \small (a) Chọn hồ sơ và bối cảnh thời tiết
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-suggestion-result.jpg}
+
+  \small (b) Bộ đồ và cách điều chỉnh được đề xuất
+\end{minipage}
+\caption{Gợi ý phối đồ dựa trên hồ sơ, thời tiết và hoàn cảnh.}
+\label{fig:ui-suggestion}
+\end{figure}
+
+Hình~\ref{fig:ui-chat} minh hoạ khả năng hỏi đáp tiếp nối: câu trả lời đầu
+tiên sử dụng bối cảnh mưa và nhiệt độ hiện tại, còn lượt hỏi sau tiếp tục dùng
+thông tin hồ sơ và lịch sử hội thoại để tư vấn loại giày phù hợp.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-chat-initial.jpg}
+
+  \small (a) Câu hỏi và phản hồi đầu tiên
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-chat-followup.jpg}
+
+  \small (b) Hỏi tiếp trong cùng ngữ cảnh
+\end{minipage}
+\caption{Giao diện hỏi đáp phối đồ nhiều lượt với Gemini.}
+\label{fig:ui-chat}
+\end{figure}
+
+Người dùng có thể tạo nhiều hồ sơ cơ thể và thay đổi hồ sơ đang hoạt động.
+Các biểu mẫu trong Hình~\ref{fig:ui-profile} thu thập tên hồ sơ, chiều cao,
+cân nặng và giới tính; các dữ liệu này được dùng làm bối cảnh cho phân tích và
+gợi ý phối đồ.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-profile-edit.jpg}
+
+  \small (a) Chỉnh sửa hồ sơ cơ thể
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-profile-add.jpg}
+
+  \small (b) Tạo hồ sơ cơ thể mới
+\end{minipage}
+\caption{Quản lý các hồ sơ cơ thể của người dùng.}
+\label{fig:ui-profile}
+\end{figure}
+
+Chức năng thử đồ cho phép người dùng căn ảnh trang phục vào khung, phóng thu,
+xoay, lật và xem trước trước khi tạo lớp ghép. Hình~\ref{fig:ui-tryon-prepare}
+minh hoạ bước tạo filter và kết quả ghép áo 2D theo các điểm neo tư thế. Dòng
+trạng thái kết nối và FPS đồng thời cho biết frame camera đang được xử lý theo
+thời gian thực.
+
+\begin{figure}[H]
+\centering
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-tryon-calibrate.png}
+
+  \small (a) Căn ảnh trang phục và tạo filter
+\end{minipage}\hfill
+\begin{minipage}[t]{0.46\textwidth}
+  \centering
+  \includegraphics[width=\linewidth,height=0.57\textheight,keepaspectratio]{screenshots/ui-tryon-2d.png}
+
+  \small (b) Ghép lớp áo 2D theo tư thế
+\end{minipage}
+\caption{Chuẩn bị ảnh trang phục và thử đồ trực tiếp ở chế độ 2D.}
+\label{fig:ui-tryon-prepare}
+\end{figure}
+
+Ngoài lớp ghép 2D, ứng dụng còn cung cấp chế độ 3D bám thân. Ảnh thực nghiệm
+trong Hình~\ref{fig:ui-tryon-3d} cho thấy mesh áo được biến dạng theo phần cơ
+thể nhìn thấy, đồng thời người dùng vẫn có thể chuyển về 2D, xoá lớp ảnh,
+chọn nhóm trang phục khác hoặc thêm ảnh đồ mới. Camera chỉ được xử lý tạm
+thời và không lưu frame tại backend.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.52\textwidth,height=0.68\textheight,keepaspectratio]{screenshots/ui-tryon-3d.png}
+\caption{Kết quả thử đồ trực tiếp ở chế độ 3D bám thân.}
+\label{fig:ui-tryon-3d}
+\end{figure}
+
+\clearpage
+
+\section{Kiểm thử}
+
+Các bộ kiểm thử tự động được chạy lại ngày 11/11/2026 và tổng hợp ở
+Bảng~\ref{tab:kiemthu}. Backend dùng mock cho YOLO, Gemini, MediaPipe và API
+ngoài nên không phát sinh chi phí dịch vụ; kết quả Flutter phản ánh đúng trạng
+thái mã tại thời điểm biên soạn báo cáo.
+
+\begin{table}[H]
+\centering
+\caption{Các nhóm ca kiểm thử của hệ thống.}
+\label{tab:kiemthu}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\color{daumaroon}}l}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Nhóm & \bfseries\color{daumaroon}Đầu vào/thao tác & \bfseries\color{daunavy}Kết quả mong đợi & \bfseries\color{daumaroon}Thực tế \\
+\midrule
+Backend & validation ảnh, YOLO, Gemini, thời tiết, pose và WebSocket & route trả dữ liệu/lỗi đúng schema, không lưu frame & 104/104 đạt \\
+Flutter & model, service, widget và điều hướng ứng dụng & toàn bộ test tự động đạt & 139 đạt, 6 lỗi \\
+Lỗi giao diện & hồ sơ cá nhân, gợi ý không ảnh, đổi giới tính, thời tiết và chuyển tab & nội dung và trạng thái khớp kỳ vọng test & chưa đạt \\
+Thử đồ & ánh xạ camera, làm mượt pose, filter, mesh và thao tác lớp ảnh & tính toán ổn định trên test tự động & đạt trong bộ test \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Sáu lỗi Flutter tập trung ở các test widget đã lệch với giao diện hiện tại:
+hiển thị tên tại màn Cá nhân; trạng thái giới tính khi yêu cầu gợi ý đang chờ;
+ba trường hợp nội dung Gợi ý/Open-Meteo; và luồng mở Gợi ý từ thanh tab. Đây
+là lỗi cần đồng bộ giữa giao diện và test trước khi tuyên bố toàn bộ ứng dụng
+đạt kiểm thử hồi quy.
+

@@ -1,0 +1,347 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 3 — PHÂN TÍCH VÀ THIẾT KẾ
+% ---------------------------------------------------------------------
+\chapter{Phân tích và thiết kế}
+\label{ch:thietke}
+
+\begin{muctieu}
+Chương này phân tích đầu vào, đầu ra và yêu cầu của hệ thống; đồng thời mô
+tả kiến trúc, dữ liệu và cách tổ chức các thành phần nhận diện, gợi ý phối
+đồ và thử trang phục ảo.
+\end{muctieu}
+
+\section{Phân tích bài toán và yêu cầu}
+
+Hệ thống hướng đến người dùng Android có nhu cầu lưu trữ quần áo cá nhân và
+nhận hỗ trợ khi lựa chọn trang phục. Đầu vào chính là ảnh có một trang phục
+nổi bật, ảnh người dùng phục vụ thử đồ và thông tin tài khoản. Đầu ra gồm
+loại quần áo dự đoán, độ tin cậy, tối đa ba phương án phối đồ và ảnh xem
+trước sau khi ghép lớp trang phục.
+
+Các yêu cầu chức năng được xác định từ phạm vi ở Chương~\ref{ch:modau} gồm:
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item đăng ký, đăng nhập và quản lý thông tin người dùng;
+  \item nhận ảnh từ camera hoặc thư viện ảnh;
+  \item nhận diện một số nhóm quần áo và trả độ tin cậy;
+  \item thêm, sửa, xoá và xem các món đồ trong tủ đồ cá nhân;
+  \item gợi ý tối đa ba phối đồ theo loại, màu sắc và phong cách;
+  \item lưu trang phục, phối đồ hoặc kết quả yêu thích;
+  \item ghép ảnh quần áo nền trong suốt lên ảnh người dùng và điều chỉnh vị
+        trí, kích thước, góc xoay.
+\end{itemize}
+
+Yêu cầu phi chức năng gồm giao diện sử dụng được trên thiết bị Android, dữ
+liệu mỗi người dùng được tách biệt, lỗi API được xử lý rõ ràng và thời gian
+phản hồi hướng tới không quá 3 giây trong điều kiện kiểm thử ổn định.
+
+Phạm vi tương tác giữa người dùng và các chức năng chính được tổng hợp ở
+Hình~\ref{fig:usecase-tongquat}. Sơ đồ tập trung vào một tác nhân người dùng
+và bảy use case đã xác định từ phạm vi đồ án; quan hệ với API và Firebase
+được trình bày riêng trong sơ đồ kiến trúc ở Hình~\ref{fig:kientruc}.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.94\textwidth}{!}{%
+\begin{tikzpicture}[
+  uc/.style={draw=daumaroon, ellipse, align=center, fill=lightwarm,
+             minimum width=3.5cm, minimum height=1.05cm, font=\small},
+  assoc/.style={draw=gray700, line width=0.55pt}
+]
+  \draw[draw=daunavy, rounded corners=4pt, line width=0.8pt]
+    (2.2,0.9) rectangle (12.0,-7.8);
+  \node[anchor=west, font=\bfseries\color{daunavy}] at (2.45,0.55)
+    {Hệ thống gợi ý phối đồ};
+
+  % Tác nhân người dùng
+  \draw[daunavy, line width=0.8pt] (0.7,-2.0) circle (0.28);
+  \draw[daunavy, line width=0.8pt] (0.7,-2.28) -- (0.7,-3.25);
+  \draw[daunavy, line width=0.8pt] (0.15,-2.62) -- (1.25,-2.62);
+  \draw[daunavy, line width=0.8pt] (0.7,-3.25) -- (0.2,-4.0);
+  \draw[daunavy, line width=0.8pt] (0.7,-3.25) -- (1.2,-4.0);
+  \node[align=center, font=\small\bfseries, text=daunavy] at (0.7,-4.45)
+    {Người dùng};
+
+  \node[uc] (auth) at (4.5,-0.8) {Đăng ký, đăng nhập};
+  \node[uc] (capture) at (9.3,-0.8) {Chọn hoặc chụp ảnh};
+  \node[uc] (wardrobe) at (4.5,-2.65) {Quản lý tủ đồ};
+  \node[uc] (recognize) at (9.3,-2.65) {Nhận diện trang phục};
+  \node[uc] (recommend) at (4.5,-4.5) {Nhận gợi ý phối đồ};
+  \node[uc] (favorite) at (9.3,-4.5) {Lưu và yêu thích};
+  \node[uc] (tryon) at (6.9,-6.55) {Thử trang phục 2D};
+
+  % Các đoạn trùng nhau được gom theo hai trục để tránh cắt qua ellipse.
+  \draw[assoc] (1.25,-2.62) -- (2.65,-2.62);
+  \draw[assoc] (2.65,-0.8) -- (2.65,-6.55);
+  \draw[assoc] (2.65,-0.8) -- (auth.west);
+  \draw[assoc] (2.65,-2.65) -- (wardrobe.west);
+  \draw[assoc] (2.65,-4.5) -- (recommend.west);
+  \draw[assoc] (2.65,-6.55) -- (tryon.west);
+
+  \draw[assoc] (1.25,-2.62) -- (1.65,-2.62) -- (1.65,-7.45)
+    -- (11.55,-7.45) -- (11.55,-0.8);
+  \draw[assoc] (capture.east) -- (11.55,-0.8);
+  \draw[assoc] (recognize.east) -- (11.55,-2.65);
+  \draw[assoc] (favorite.east) -- (11.55,-4.5);
+  \draw[assoc] (6.9,-7.45) -- (tryon.south);
+\end{tikzpicture}}
+\caption{Sơ đồ use case tổng quát của hệ thống gợi ý phối đồ.}
+\label{fig:usecase-tongquat}
+\end{figure}
+
+Các use case trong sơ đồ được đặc tả ngắn gọn ở
+Bảng~\ref{tab:usecase}. Đầu vào và kết quả chỉ mô tả những gì đã được xác
+định trong phạm vi đồ án, không giả định tên màn hình hoặc endpoint cụ thể.
+
+\begin{table}[H]
+\centering
+\caption{Danh sách use case chính của hệ thống.}
+\label{tab:usecase}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daumaroon}}l >{\bfseries\color{daunavy}\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\rowcolor{gray100}\bfseries\color{daumaroon}Mã & \bfseries\color{daunavy}Use case & \bfseries\color{daumaroon}Đầu vào/thao tác & \bfseries\color{daunavy}Kết quả mong đợi \\
+\midrule
+UC01 & Xác thực & đăng ký hoặc đăng nhập & phiên người dùng và dữ liệu đúng tài khoản \\
+UC02 & Tiếp nhận ảnh & chụp ảnh hoặc chọn từ thư viện & ảnh được kiểm tra và hiển thị xem trước \\
+UC03 & Nhận diện trang phục & ảnh có một trang phục chính & nhãn dự đoán và độ tin cậy \\
+UC04 & Quản lý tủ đồ & thêm, xem, sửa hoặc xoá món đồ & tủ đồ được cập nhật theo tài khoản \\
+UC05 & Gợi ý phối đồ & món đồ đầu vào và dữ liệu tủ đồ & tối đa ba phương án không trùng \\
+UC06 & Lưu và yêu thích & trang phục, phối đồ hoặc kết quả & nội dung được lưu để xem lại \\
+UC07 & Thử đồ 2D & ảnh người dùng và ảnh trang phục & lớp ảnh có thể di chuyển, co giãn và xoay \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Luồng xử lý chi tiết của bảy use case được minh hoạ lần lượt qua chức năng
+xác thực ở Hình~\ref{fig:uc01-xac-thuc}, tiếp nhận ảnh ở
+Hình~\ref{fig:uc02-tiep-nhan-anh}, nhận diện trang phục ở
+Hình~\ref{fig:uc03-nhan-dien}, quản lý tủ đồ ở Hình~\ref{fig:uc04-tu-do},
+gợi ý phối đồ ở Hình~\ref{fig:uc05-goi-y}, lưu nội dung và yêu thích ở
+Hình~\ref{fig:uc06-luu-yeu-thich}, và thử trang phục 2D ở
+Hình~\ref{fig:uc07-thu-do-2d}. Các sơ đồ cụ thể hoá những thao tác đã tổng
+hợp trong Bảng~\ref{tab:usecase} mà không bổ sung chức năng ngoài phạm vi
+đã xác định.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc01-xac-thuc.png}
+\caption{Use case UC01: đăng ký và đăng nhập.}
+\label{fig:uc01-xac-thuc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc02-tiep-nhan-anh.png}
+\caption{Use case UC02: chọn hoặc chụp ảnh.}
+\label{fig:uc02-tiep-nhan-anh}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc03-nhan-dien.png}
+\caption{Use case UC03: nhận diện trang phục.}
+\label{fig:uc03-nhan-dien}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc04-tu-do.png}
+\caption{Use case UC04: quản lý tủ đồ.}
+\label{fig:uc04-tu-do}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc05-goi-y.png}
+\caption{Use case UC05: gợi ý phối đồ.}
+\label{fig:uc05-goi-y}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc06-luu-yeu-thich.png}
+\caption{Use case UC06: lưu nội dung và yêu thích.}
+\label{fig:uc06-luu-yeu-thich}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{use-cases/uc07-thu-do-2d.png}
+\caption{Use case UC07: thử trang phục 2D.}
+\label{fig:uc07-thu-do-2d}
+\end{figure}
+
+Hệ thống hiện chỉ có một vai trò nghiệp vụ là người dùng đã xác thực. Firestore
+cho phép đối chiếu \code{request.auth.uid} với định danh trên đường dẫn để giới
+hạn người dùng vào dữ liệu của chính họ~\cite{FirestoreRules}. Quy tắc phiên bản
+2 của dự án cho phép người dùng đọc, tạo, cập nhật và xoá đúng tài
+liệu \code{users/\{userId\}} khi \code{request.auth.uid=userId}; quyền đọc/ghi
+subcollection \code{wardrobe/\{itemId\}} cũng dùng cùng điều kiện. Người chưa
+đăng nhập, truy cập UID khác hoặc truy cập đường dẫn không được khai báo đều
+bị từ chối mặc định. Quy tắc chưa kiểm tra tên trường, kiểu dữ liệu hay giới
+hạn nội dung, vì vậy người sở hữu vẫn có thể ghi mọi trường vào tài liệu của
+mình; đây là điểm cần tăng cường trước khi triển khai thực tế.
+
+Endpoint phân tích trang phục nhận multipart gồm ảnh JPG/JPEG/PNG tối đa
+10 MB, hồ sơ, bối cảnh và ngưỡng confidence; phản hồi gồm các đối tượng
+nhận diện và đánh giá Gemini nếu dịch vụ khả dụng. WebSocket thử đồ nhận cấu
+hình camera trước, sau đó nhận JPEG nhị phân tối đa 3 MB và trả landmark/điểm
+neo. Tiêu chí nghiệm thu là dữ liệu hợp lệ phải trả đúng schema; ảnh rỗng, sai
+định dạng hoặc quá kích thước phải bị từ chối rõ ràng; tài khoản A không được
+đọc/ghi dữ liệu của tài khoản B; ảnh và frame camera không được lưu tại backend.
+
+\section{Thiết kế kiến trúc hệ thống}
+
+Kiến trúc logic theo phạm vi đã mô tả được trình bày ở
+Hình~\ref{fig:kientruc}. Sơ đồ chỉ thể hiện trách nhiệm của các khối; tên
+dịch vụ, endpoint và vị trí triển khai phải được cập nhật theo mã nguồn.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[node distance=11mm and 14mm]
+  \node[objbox] (user) {Người dùng\\Android};
+  \node[clsbox, right=of user] (app) {Ứng dụng\\Flutter};
+  \node[clsbox, right=of app] (api) {Dịch vụ\\API};
+  \node[clsbox, right=of api] (ai) {YOLO, Gemini\\và MediaPipe};
+  \node[objbox, right=of ai] (rec) {Kết quả phân tích,\\gợi ý và tư thế};
+  \node[membox, below=of app] (overlay) {Ghép ảnh theo tư thế\\trên thiết bị};
+  \node[membox, below=of api] (firebase) {Firebase Auth/Firestore\\tài khoản, hồ sơ, tủ đồ};
+  \draw[flowarr] (user) -- (app);
+  \draw[flowarr] (app) -- (api);
+  \draw[flowarr] (api) -- (ai);
+  \draw[flowarr] (ai) -- (rec);
+  \draw[flowarr] (rec.south) -- ++(0,-8mm) -| (app.south);
+  \draw[flowarr] (app) -- (overlay);
+  \draw[flowarr] (app) -- (firebase);
+\end{tikzpicture}}
+\caption{Kiến trúc logic của hệ thống gợi ý phối đồ.}
+\label{fig:kientruc}
+\end{figure}
+
+Ứng dụng Flutter chịu trách nhiệm tương tác, nhận ảnh, gọi API và hiển thị
+kết quả. FastAPI là ranh giới với YOLO, Gemini, Open-Meteo và MediaPipe.
+Flutter kết nối trực tiếp Firebase Authentication/Firestore; backend không
+truy cập Firebase. Firestore đang lưu tài khoản và hồ sơ cơ thể, đồng thời
+rules đã dành đường dẫn \code{users/\{uid\}/wardrobe/\{itemId\}} cho tủ đồ,
+nhưng mã Flutter hiện chưa có luồng đọc/ghi subcollection này. Lớp trang phục
+được Flutter ghép theo điểm neo tư thế và cho phép điều chỉnh thủ công.
+
+\section{Thiết kế dữ liệu}
+
+Từ mã nguồn ứng dụng, các nhóm dữ liệu thực tế được tổng hợp trong
+Bảng~\ref{tab:dulieu}. Firebase dùng collection \code{users}; lịch sử hỏi
+đáp và tuỳ chọn phân tích được lưu cục bộ theo định danh người dùng.
+
+\begin{table}[H]
+\centering
+\caption{Các nhóm dữ liệu logic của hệ thống.}
+\label{tab:dulieu}
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Nhóm dữ liệu & \bfseries\color{daumaroon}Thông tin chính & \bfseries\color{daunavy}Mục đích \\
+\midrule
+Tài khoản & uid, họ tên, email, thời điểm tạo/cập nhật & xác thực và phân tách dữ liệu theo người dùng \\
+Hồ sơ cơ thể & tên hồ sơ, chiều cao, cân nặng, giới tính tự khai, hồ sơ đang chọn & cá nhân hoá phân tích, gợi ý và hỏi đáp \\
+Tuỳ chọn phân tích & chế độ thời tiết, mùa, nhiệt độ, phong cách, hoàn cảnh & khôi phục bối cảnh gần nhất theo tài khoản \\
+Lịch sử hỏi đáp & vai trò, nội dung và thứ tự lượt chat & giữ hội thoại cục bộ và gửi tối đa sáu lượt gần nhất cho Gemini \\
+Tủ đồ (đã có rules) & \code{users/\{uid\}/}\newline\code{wardrobe/\{itemId\}}; cấu trúc trường chưa xác minh & giới hạn quyền theo chủ tài khoản; mã Flutter hiện chưa sử dụng \\
+Kết quả phân tích & lớp gốc, nhóm chuẩn hoá, màu, độ tin cậy, hộp và các điểm đánh giá & hiển thị kết quả YOLO/Gemini; không lưu ảnh ở backend \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ngoài dữ liệu nghiệp vụ, thành phần YOLO sử dụng hai nguồn ảnh. Bộ
+\emph{Clothes Detection v1} xuất từ Roboflow gồm 11.926 ảnh, được chia thành
+8.348 ảnh train, 2.385 ảnh validation và 1.193 ảnh test. File cấu hình công
+bố giấy phép CC BY 4.0 và 21 lớp theo đúng thứ tự:
+bag, belt, boat, coat, dress, glasses, hat, jacket, jumper, pants, pocket,
+shirt, shoe, shoesClassic, shoesSports, shorts, skirt, sunglass, trousers,
+tshirt và zipper.
+
+Nguồn thứ hai là DeepFashion In-shop với 52.712 ảnh và hộp giới hạn
+~\cite{DeepFashion2016}. Notebook V3 chuyển thành công 52.711 ảnh, bỏ qua một
+ảnh lỗi, đồng thời ánh xạ 17 nhóm thư mục nguồn về taxonomy 21 lớp. Hai ánh
+xạ gần đúng là \code{Rompers\_Jumpsuits} sang dress và \code{Suiting} sang
+jacket. DeepFashion chỉ cho phép sử dụng phi thương mại trong nghiên cứu và
+giáo dục theo README đi kèm dữ liệu.
+
+Dữ liệu DeepFashion được chia theo \code{item\_id} với tỉ lệ 80/10/10 và
+seed 42 để tránh rò rỉ nhiều góc chụp của cùng sản phẩm. Ảnh train của bộ dữ
+liệu cũ được lặp hai lần trước khi trộn. Quy mô dữ liệu V3 sau khi chuẩn bị
+được trình bày ở Bảng~\ref{tab:dulieu-yolo}.
+
+\begin{table}[H]
+\centering
+\caption{Quy mô dữ liệu phát hiện trang phục ở phiên bản V3.}
+\label{tab:dulieu-yolo}
+\small
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}}l >{\raggedleft\arraybackslash}X >{\raggedleft\arraybackslash}X >{\raggedright\arraybackslash}p{6.0cm}}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Tập & \bfseries\color{daumaroon}Ảnh & \bfseries\color{daumaroon}Đối tượng & \bfseries\color{daunavy}Ghi chú \\
+\midrule
+Train & 59.463 & 69.715 & gồm 16.696 lượt ảnh cũ sau khi lặp và 42.767 ảnh DeepFashion \\
+Validation & 6.902 & 9.275 & gồm 2.385 ảnh cũ và 4.517 ảnh DeepFashion \\
+Test & 6.620 & 7.821 & gồm 1.193 ảnh cũ và 5.427 ảnh DeepFashion \\
+\midrule
+Tổng & 72.985 & 86.811 & số ảnh train bao gồm lượt lặp có chủ đích \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Nhật ký Ultralytics thực tế chấp nhận 59.315 ảnh train và 6.882 ảnh
+validation; phần còn lại bị bỏ qua chủ yếu do nhãn cũ trộn hàng detection và
+segmentation hoặc có toạ độ ngoài khoảng $[0,1]$. Đây là vấn đề chất lượng dữ
+liệu cần được xử lý trước khi huấn luyện lại. Mã Flutter xác nhận hồ sơ tài
+khoản và mảng \code{bodyProfiles} nằm trong \code{users/\{uid\}}; ảnh phân
+tích, frame camera và kết quả YOLO không được ghi vào Firestore.
+
+\section{Thiết kế mô hình hoặc cơ sở tri thức}
+
+Thành phần nhận diện là bộ phát hiện đối tượng YOLO. Chuỗi xử lý gồm kiểm tra
+ảnh, đưa ảnh về kích thước 640 pixel, suy luận hộp giới hạn và điểm lớp, lọc
+kết quả theo ngưỡng của dịch vụ rồi trả nhãn, độ tin cậy và vị trí trang phục.
+Các notebook và checkpoint cho thấy ba vòng lặp huấn luyện trong
+Bảng~\ref{tab:cauhinh-yolo}; đây là các phiên bản fine-tune của cùng họ mô
+hình chứ không phải ba kiến trúc độc lập.
+
+\begin{table}[H]
+\centering
+\caption{Cấu hình các phiên bản huấn luyện YOLO.}
+\label{tab:cauhinh-yolo}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}}l >{\raggedright\arraybackslash}p{2.4cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{4.2cm}}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Phiên bản & \bfseries\color{daumaroon}Khởi tạo & \bfseries\color{daunavy}Dữ liệu & \bfseries\color{daumaroon}Cấu hình chính \\
+\midrule
+V1 & \code{yolo26n.pt} & Roboflow 11.926 ảnh & tối đa 60 epoch, batch 16, ảnh 640, optimizer tự động \\
+V2 & \code{best.pt} & dữ liệu cũ và 6.500 ảnh DeepFashion được chọn & tối đa 40 epoch, patience 10, AdamW, $lr_0=10^{-4}$, cosine LR \\
+V3 & checkpoint V1/V3 & dữ liệu ở Bảng~\ref{tab:dulieu-yolo} & 30 epoch đã ghi nhận và 5 epoch tiếp tục, AdamW, batch 16, ảnh 640, seed 42 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ở V3, lần chạy chính dùng $lr_0=10^{-4}$, weight decay 0,0005, cosine LR,
+mosaic 0,5 và AMP. Sau khi phiên chạy dừng ở epoch 30, notebook nạp
+\code{last.pt} và chạy tiếp 5 epoch với $lr_0=10^{-5}$, tắt AMP và lưu
+checkpoint \code{best.pt}. Các tệp kết quả ghi nhận box loss, classification
+loss và L1 loss cho cả train và validation.
+
+Thành phần phân tích gửi metadata nhận diện, hồ sơ và bối cảnh đến Gemini để
+nhận các điểm màu sắc, mùa/nhiệt độ, tỉ lệ cơ thể, phong cách và hoàn cảnh.
+Điểm tổng dùng trọng số tương ứng 0,30; 0,30; 0,20; 0,10 và 0,10; tiêu chí
+thiếu dữ liệu được bỏ khỏi mẫu số thay vì tính bằng 0. Luồng Gợi ý độc lập
+với ảnh và YOLO, trả một nhận định, một lý do và từ một đến ba điều chỉnh.
+Khi Gemini lỗi, hệ thống giữ kết quả YOLO và không tạo đánh giá giả.
+
+Thành phần thử đồ nhận JPEG camera, chạy MediaPipe Pose ở chế độ
+\code{VIDEO}, trả landmark và điểm neo qua WebSocket. Flutter ánh xạ toạ độ
+camera, làm mượt tư thế rồi đặt lớp ảnh theo vai, hông hoặc bàn chân; người
+dùng có thể tinh chỉnh vị trí, tỉ lệ và góc xoay. Phương pháp này không suy
+diễn chính xác hình dạng ba chiều của cơ thể hoặc đặc tính vật lý của vải.
+
+API mặc định nạp \code{backend/models/best.pt}; endpoint phân tích dùng
+confidence 0,25 và IoU 0,45. Trên giao diện, người dùng có thể điều chỉnh
+confidence trong khoảng 0,10--0,90. Các thông tin này được lấy trực tiếp từ
+mã backend và mã Flutter.

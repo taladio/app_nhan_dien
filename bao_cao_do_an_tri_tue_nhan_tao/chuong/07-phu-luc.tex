@@ -1,0 +1,77 @@
+% ---------------------------------------------------------------------
+%  PHỤ LỤC
+% ---------------------------------------------------------------------
+% Trong \backmatter thì \chapter đã tự thêm vào mục lục, không cần
+% \addcontentsline nữa, thêm vào là trùng neo dấu trang.
+\chapter{Phụ lục}
+\markboth{Phụ lục}{}
+
+\section*{A. Hướng dẫn cài đặt và chạy chương trình}
+\phantomsection
+\addcontentsline{toc}{section}{A. Hướng dẫn cài đặt và chạy chương trình}
+
+Mã nguồn sử dụng Dart SDK từ 3.13.1, Flutter, Android SDK và Python. Backend
+đã được kiểm thử với Python 3.13.7. Quy trình cài đặt được thực hiện từ thư
+mục gốc của dự án như sau:
+
+\begin{enumerate}[leftmargin=1.8em, itemsep=4pt]
+  \item Tạo môi trường Python bằng lệnh
+        \code{python -m venv backend/.venv}. Sau khi kích hoạt môi trường,
+        cài các gói trong \path{backend/requirements.txt} bằng \code{pip}.
+  \item Tạo \path{backend/.env} từ tệp mẫu cùng thư mục, sau đó cấu hình
+        \code{GEMINI\_API\_KEY}. Checkpoint YOLO nằm tại
+        \path{backend/models/best.pt}; script tải mô hình pose nằm tại
+        \path{backend/scripts/download_pose_model.py}.
+  \item Từ thư mục \path{backend}, khởi chạy API bằng
+        \code{python -m uvicorn main:app} với host \code{0.0.0.0} và cổng
+        \code{8000}. Trạng thái dịch vụ được kiểm tra tại route
+        \code{/health}.
+  \item Cài phụ thuộc Flutter bằng \code{flutter pub get}. Cấu hình Firebase
+        của ứng dụng nằm trong \path{android/app/google-services.json} và
+        \path{lib/firebase_options.dart}.
+  \item Ứng dụng sử dụng địa chỉ API trong
+        \path{lib/config/api_config.dart}; giá trị hiện tại là
+        \code{http://192.168.1.25:8000}. Sau khi máy tính và điện thoại kết
+        nối cùng mạng, ứng dụng được khởi chạy bằng \code{flutter run}.
+\end{enumerate}
+
+\section*{B. Bảng tự kiểm trước khi nộp}
+\phantomsection
+\addcontentsline{toc}{section}{B. Bảng tự kiểm trước khi nộp}
+
+Các nội dung dưới đây tổng hợp trạng thái hoàn thiện của tài liệu tại thời
+điểm biên soạn.
+
+\begin{tukiem}
+  \item Cấu trúc chương, mục, trang bìa và quy tắc đánh số của mẫu báo cáo
+        được giữ nguyên.
+  \item Hình và bảng trong nội dung chính có chú thích, nhãn và tham chiếu
+        trong phần thuyết minh liên quan.
+  \item Các số liệu YOLO được đối chiếu với tệp kết quả huấn luyện; số liệu
+        kiểm thử được ghi theo đầu ra của backend và Flutter.
+  \item Những chức năng chưa xuất hiện trong mã nguồn được nêu là giới hạn,
+        không được trình bày như kết quả đã hoàn thành.
+  \item Tài liệu tham khảo được quản lý bằng \code{refs.bib} và được trích
+        dẫn tại nội dung liên quan.
+  \item Báo cáo được biên dịch bằng XeLaTeX và kiểm tra lại các tham chiếu
+        chéo trước khi tạo bản PDF.
+\end{tukiem}
+
+\section*{C. Nhận xét của giảng viên hướng dẫn}
+\phantomsection
+\addcontentsline{toc}{section}{C. Nhận xét của giảng viên hướng dẫn}
+
+\khungnhanxet[7.5cm]
+
+\vspace{0.8em}
+\noindent\begin{minipage}[t]{0.5\textwidth}
+\color{daunavy}
+{\color{daumaroon}\bfseries Điểm số}
+
+\vspace{0.7em}
+\dongchamnhan{Bằng số:}
+
+\vspace{0.9em}
+\dongchamnhan{Bằng chữ:}
+\end{minipage}\hfill
+\okyten{\dauGVHD}{Giảng viên hướng dẫn}

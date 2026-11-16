@@ -1,0 +1,131 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 2 — CƠ SỞ LÝ THUYẾT VÀ CÔNG NGHỆ
+% ---------------------------------------------------------------------
+\chapter{Cơ sở lý thuyết và công nghệ}
+\label{ch:coso}
+
+\begin{muctieu}
+Chương này trình bày nền tảng của bài toán nhận diện quần áo, gợi ý phối đồ,
+thử trang phục ảo và các nhóm công nghệ được xác định trong phạm vi đồ án.
+\end{muctieu}
+
+\section{Kiến thức nền tảng}
+
+\begin{dinhnghia}[Phát hiện trang phục]
+Phát hiện trang phục là bài toán xác định hộp giới hạn, nhãn lớp và độ tin
+cậy của một hoặc nhiều món đồ xuất hiện trong ảnh. Với mỗi dự đoán, mô hình
+trả về hộp $B_p$, nhãn $y \in \mathcal{Y}$ và một điểm tin cậy; trong đồ án,
+$\mathcal{Y}$ gồm 21 lớp quần áo và phụ kiện.
+\end{dinhnghia}
+
+YOLO thực hiện phát hiện đối tượng trong một lần suy luận, kết hợp định vị và
+nhận dạng lớp trong cùng mạng nơ-ron~\cite{Redmon2016}. Notebook của đồ án
+khởi tạo từ checkpoint \code{yolo26n.pt}~\cite{UltralyticsYOLO26}, sau đó fine-tune tuần tự qua các
+phiên bản V1, V2 và V3 bằng thư viện Ultralytics. Ảnh đầu vào được đưa về
+kích thước $640\times640$ pixel; cấu hình dữ liệu giữ nguyên thứ tự 21 lớp để
+checkpoint và API diễn giải nhãn nhất quán.
+
+Mức chồng lấp giữa hộp dự đoán $B_p$ và hộp thật $B_g$ được đo bằng IoU ở
+Công thức~\eqref{eq:iou-report}:
+\begin{equation}
+\mathrm{IoU}(B_p,B_g)=\frac{|B_p\cap B_g|}{|B_p\cup B_g|}.
+\label{eq:iou-report}
+\end{equation}
+IoU được dùng khi ghép dự đoán với nhãn thật và khi tính precision, recall,
+mAP@0,5 và mAP@0,5:0,95. Các đại lượng này phù hợp với bài toán phát hiện hơn
+accuracy của bài toán phân loại ảnh~\cite{COCO2014}.
+
+DeepFashion In-shop cung cấp 52.712 ảnh cùng hộp giới hạn và thông tin sản
+phẩm~\cite{DeepFashion2016}. Notebook V3 chuyển hộp giới hạn sang định dạng
+YOLO, chia dữ liệu theo \code{item\_id} với hạt giống 42 để các góc chụp của
+cùng một sản phẩm không rơi vào nhiều tập, rồi trộn với bộ dữ liệu Roboflow
+ban đầu. Phép tăng cường trong cấu hình huấn luyện gồm biến đổi HSV, tịnh tiến,
+co giãn, lật ngang và mosaic.
+
+Gợi ý phối đồ khác với tìm kiếm sản phẩm tương tự vì hệ thống phải đánh giá
+khả năng bổ sung giữa các món đồ thuộc nhiều nhóm khác nhau~\cite{McAuley2015}. Han và cộng sự
+mô hình hoá một bộ trang phục như một chuỗi và học đồng thời quan hệ tương
+thích cùng biểu diễn thị giác--ngữ nghĩa~\cite{Han2017}. Trong mã nguồn hiện
+tại, luồng gợi ý là một chức năng không dùng ảnh và không nhận kết quả YOLO.
+Backend gửi hồ sơ cơ thể, giới tính tự khai, thời tiết hoặc mùa/nhiệt độ,
+phong cách và hoàn cảnh đến Gemini; kết quả có một nhận định, lý do và từ một
+đến ba điều chỉnh. Luồng hỏi đáp dùng cùng bối cảnh và tối đa sáu lượt gần
+nhất khi gọi mô hình.
+
+Thử trang phục ảo có thể được thực hiện bằng mô hình sinh ảnh hoặc bằng ghép
+ảnh hai chiều. VITON là một phương pháp học sâu chuyển một món đồ lên ảnh
+người theo chiến lược từ thô đến tinh mà không sử dụng mô hình 3D
+~\cite{VITON2018}. Ứng dụng hiện dùng MediaPipe Pose Landmarker ở backend để
+trả landmark và các điểm neo cơ thể qua WebSocket. Flutter làm mượt tư thế,
+đặt ảnh trang phục nền trong suốt theo nhóm cơ thể và vẫn cho phép người dùng
+dịch chuyển, co giãn, xoay thủ công. Đây là ghép lớp theo tư thế, không phải
+mô hình sinh ảnh nên không mô phỏng chính xác độ rủ, nếp gấp hay ánh sáng.
+
+Ba phiên bản thực nghiệm dùng cùng họ YOLO thay vì ba kiến trúc độc lập. V1
+khởi tạo trực tiếp từ \code{yolo26n.pt}; V2 fine-tune checkpoint V1 trên dữ
+liệu được bổ sung một phần từ DeepFashion; V3 sử dụng toàn bộ 52.712 ảnh
+DeepFashion và lặp lại ảnh train cũ để giảm quên các lớp phụ kiện. V2 và V3
+dùng AdamW, batch 16, kích thước ảnh 640 và weight decay 0,0005. Vì vậy, mục
+tiêu so sánh hai kiến trúc học sâu khác nhau chưa được đáp ứng bởi các tệp
+huấn luyện hiện có.
+
+\section{Công cụ và thư viện}
+
+Các thành phần thực tế được đối chiếu từ \code{.metadata},
+\code{pubspec.lock}, môi trường Python của backend và cấu hình huấn luyện,
+sau đó tổng hợp ở Bảng~\ref{tab:congcu}. Phiên bản dùng khi huấn luyện trên
+Colab được phân biệt với phiên bản đang cài trong backend triển khai.
+
+\begin{table}[H]
+\centering
+\caption{Công cụ và thư viện sử dụng trong đồ án.}
+\label{tab:congcu}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{>{\bfseries\color{daunavy}\raggedright\arraybackslash}p{2.8cm} >{\color{daumaroon}\raggedright\arraybackslash}p{3.4cm} >{\raggedright\arraybackslash}X}
+\toprule
+\rowcolor{gray100}\bfseries\color{daunavy}Thành phần & \bfseries\color{daumaroon}Phiên bản & \bfseries\color{daunavy}Vai trò \\
+\midrule
+Flutter / Dart & 3.47.1 stable / 3.13.1 & Xây dựng giao diện Android, điều hướng bốn tab Phân tích, Gợi ý, Hỏi đáp và Cá nhân \\
+Firebase & Core 4.14.0; Auth 6.6.1; Firestore 6.9.0 & Khởi tạo ứng dụng, xác thực email/mật khẩu, lưu hồ sơ tài khoản và hồ sơ cơ thể theo người dùng \\
+FastAPI / Uvicorn & 0.141.1 / 0.52.4 & Cung cấp REST API và WebSocket cho YOLO, đánh giá/gợi ý, thời tiết và nhận diện tư thế~\cite{FastAPIFeatures} \\
+Ultralytics YOLO & 8.4.135 (backend) & Nạp \code{backend/models/best.pt}, phát hiện 21 lớp gốc và chuẩn hoá về tám nhóm dùng trong ứng dụng \\
+PyTorch & 2.13.0 (backend); 2.11.0+cu130 (Colab) & Chạy suy luận trên CPU/CUDA và huấn luyện các phiên bản YOLO V1--V3 \\
+Gemini / Google Gen AI & google-genai 2.25.0; Gemini 3.5 Flash-Lite & Đánh giá bộ đồ, sinh gợi ý có cấu trúc và trả lời hỏi đáp; không tạo kết quả giả khi dịch vụ lỗi \\
+MediaPipe & 1.0.1 & Pose Landmarker xử lý khung hình camera và trả landmark/điểm neo cho thử đồ qua WebSocket~\cite{MediaPipePose} \\
+Google Colab & GPU Tesla T4 & Chuẩn bị dữ liệu và huấn luyện mô hình YOLO trên môi trường trực tuyến \\
+OpenCV / NumPy / Pillow & 5.0.0.93 / 2.5.2 / 12.3.0 & Giải mã, kiểm tra ảnh, trích màu và chuẩn bị đầu vào phía backend \\
+Camera và xử lý ảnh Flutter & camera 0.12.1; image\_picker 1.2.3; image 4.9.2 & Chụp/chọn ảnh, chuyển đổi frame camera và ghép lớp trang phục \\
+Kết nối và vị trí & http 1.6.0; WebSocket 3.0.3; geolocator 14.0.3 & Gọi REST API, truyền frame pose thời gian thực và lấy vị trí cho dữ liệu Open-Meteo \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Phiên bản Ultralytics 8.4.135 ở Bảng~\ref{tab:congcu} là phiên bản trong
+môi trường backend cục bộ. Notebook Colab không in phiên bản Ultralytics nên
+báo cáo không đồng nhất hai môi trường này một cách suy đoán.
+
+\section{Các công trình liên quan}
+
+YOLO đặt bài toán phát hiện đối tượng thành một quy trình hồi quy thống nhất,
+cho phép dự đoán hộp giới hạn và lớp trong một lần chạy mạng
+~\cite{Redmon2016}. Đồ án sử dụng một checkpoint YOLO kích thước nano để ưu
+tiên khả năng triển khai, sau đó fine-tune trên dữ liệu thời trang riêng.
+
+DeepFashion cung cấp dữ liệu thời trang có chú thích phong phú cho các bài
+toán nhận diện, truy hồi và phân tích thuộc tính quần áo
+~\cite{DeepFashion2016}. Công trình cho thấy dữ liệu thời trang cần chú ý
+đến biến thiên về tư thế, góc chụp, phông nền và sự khác biệt nhỏ giữa các
+nhóm sản phẩm.
+
+Han và cộng sự nghiên cứu khả năng tương thích thời trang bằng Bi-LSTM,
+kết hợp đặc trưng ảnh với thông tin ngữ nghĩa để hỗ trợ gợi ý món đồ và toàn
+bộ trang phục~\cite{Han2017}. Hướng tiếp cận này có khả năng học quan hệ từ
+dữ liệu, trong khi đồ án hiện mô tả phạm vi gợi ý dựa trên loại, màu sắc và
+phong cách cơ bản.
+
+VITON tạo ảnh thử đồ bằng một quy trình học sâu từ thô đến tinh
+~\cite{VITON2018}. Đồ án không triển khai mô hình sinh ảnh tương đương mà
+chọn kỹ thuật ghép lớp 2D đơn giản hơn để phù hợp thời gian và tài nguyên.
+Sự khác biệt này cần được nêu rõ khi đánh giá: chức năng thử đồ của sản phẩm
+chỉ mang tính minh hoạ trực quan, không phải mô phỏng chân thực.

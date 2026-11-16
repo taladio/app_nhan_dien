@@ -1,0 +1,29 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.1}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Sơ đồ use case tổng quát của hệ thống gợi ý phối đồ.}}{10}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC01: đăng ký và đăng nhập.}}{12}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC02: chọn hoặc chụp ảnh.}}{12}{figure.caption.12}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC03: nhận diện trang phục.}}{13}{figure.caption.13}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC04: quản lý tủ đồ.}}{13}{figure.caption.14}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC05: gợi ý phối đồ.}}{14}{figure.caption.15}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC06: lưu nội dung và yêu thích.}}{14}{figure.caption.16}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Use case UC07: thử trang phục 2D.}}{15}{figure.caption.17}%
+\contentsline {figure}{\numberline {3.9}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Kiến trúc logic của hệ thống gợi ý phối đồ.}}{16}{figure.caption.18}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {4.1}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Giao diện xác thực người dùng bằng email và mật khẩu.}}{23}{figure.caption.23}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Luồng yêu cầu đặt lại mật khẩu qua email.}}{24}{figure.caption.24}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Luồng đổi mật khẩu của tài khoản đang đăng nhập.}}{25}{figure.caption.25}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Luồng tiếp nhận ảnh và nhận diện trang phục bằng YOLO.}}{26}{figure.caption.26}%
+\contentsline {figure}{\numberline {4.5}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Kết quả đánh giá và khuyến nghị sau khi phân tích trang phục.}}{27}{figure.caption.27}%
+\contentsline {figure}{\numberline {4.6}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Gợi ý phối đồ dựa trên hồ sơ, thời tiết và hoàn cảnh.}}{28}{figure.caption.28}%
+\contentsline {figure}{\numberline {4.7}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Giao diện hỏi đáp phối đồ nhiều lượt với Gemini.}}{29}{figure.caption.29}%
+\contentsline {figure}{\numberline {4.8}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Quản lý các hồ sơ cơ thể của người dùng.}}{30}{figure.caption.30}%
+\contentsline {figure}{\numberline {4.9}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Chuẩn bị ảnh trang phục và thử đồ trực tiếp ở chế độ 2D.}}{31}{figure.caption.31}%
+\contentsline {figure}{\numberline {4.10}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Kết quả thử đồ trực tiếp ở chế độ 3D bám thân.}}{32}{figure.caption.32}%
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {5.1}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Loss và độ đo của năm epoch fine-tune cuối ở V3.}}{35}{figure.caption.35}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Ma trận nhầm lẫn chuẩn hoá của V3 trên tập validation.}}{36}{figure.caption.36}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces \xpg@aux {}{vietnamese}\ignorespaces Một lô dự đoán của V3 trên tập validation.}}{36}{figure.caption.37}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }

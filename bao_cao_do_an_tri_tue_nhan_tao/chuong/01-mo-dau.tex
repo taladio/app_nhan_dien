@@ -1,0 +1,146 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 1 — MỞ ĐẦU
+% ---------------------------------------------------------------------
+\chapter{Mở đầu}
+\label{ch:modau}
+
+\begin{muctieu}
+Chương mở đầu trình bày lý do lựa chọn đề tài, mục tiêu cần đạt, đối tượng,
+phạm vi thực hiện và bố cục của báo cáo. Qua đó, người đọc có thể nắm được
+bức tranh tổng quan về ứng dụng trí tuệ nhân tạo trong nhận diện quần áo,
+gợi ý phối đồ và thử trang phục ảo.
+\end{muctieu}
+
+\section{Lý do chọn đề tài}
+
+Trong đời sống hiện nay, nhu cầu lựa chọn trang phục phù hợp với hoàn cảnh,
+màu sắc và phong cách cá nhân ngày càng được quan tâm. Tuy nhiên, nhiều người
+gặp khó khăn trong việc xác định loại quần áo, lựa chọn những món đồ phù hợp
+với nhau hoặc hình dung trang phục sẽ trông như thế nào khi mặc. Việc thử
+trực tiếp nhiều bộ trang phục cũng tốn thời gian, đặc biệt khi mua sắm trực
+tuyến hoặc quản lý số lượng lớn quần áo cá nhân.
+
+Sự phát triển của trí tuệ nhân tạo, đặc biệt là thị giác máy tính
+\en{(computer vision)} và học sâu \en{(deep learning)}, cho phép máy tính
+phân tích hình ảnh và nhận diện các đối tượng trong ảnh với độ chính xác
+ngày càng cao. Những công nghệ này có thể được ứng dụng để nhận diện loại
+quần áo, trích xuất một số đặc điểm như màu sắc và kiểu dáng, từ đó hỗ trợ
+người dùng lựa chọn trang phục phù hợp.
+
+Bên cạnh đó, điện thoại thông minh đã trở thành thiết bị phổ biến và thuận
+tiện để chụp ảnh, lưu trữ thông tin cũng như sử dụng các dịch vụ thông minh.
+Vì vậy, việc xây dựng một ứng dụng di động tích hợp trí tuệ nhân tạo có thể
+giúp người dùng nhận diện quần áo, quản lý tủ đồ, nhận gợi ý phối đồ và thử
+trang phục ảo ngay trên điện thoại.
+
+Từ những nhu cầu thực tế trên, đề tài ``Xây dựng hệ thống gợi ý phối đồ''
+được lựa chọn. Trong phạm vi đồ án, hệ thống được định hướng dưới dạng ứng
+dụng di động Flutter, kết hợp nhận diện quần áo, quản lý tủ đồ, gợi ý phối
+đồ và thử trang phục ảo ở mức cơ bản. Đề tài không chỉ có ý nghĩa thực tiễn
+mà còn tạo điều kiện vận dụng các kiến thức về trí tuệ nhân tạo, xử lý ảnh,
+phát triển ứng dụng di động, xây dựng API và quản lý dữ liệu.
+
+\section{Mục tiêu của đồ án}
+
+Mục tiêu tổng quát của đồ án là xây dựng một ứng dụng di động có khả năng
+nhận diện quần áo từ hình ảnh, đề xuất cách phối đồ và hỗ trợ người dùng thử
+trang phục ảo ở mức cơ bản.
+
+Các mục tiêu cụ thể của đồ án gồm:
+
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item Xây dựng mô hình trí tuệ nhân tạo có khả năng phân loại một số nhóm
+        quần áo phổ biến từ ảnh do người dùng chụp hoặc tải lên.
+
+  \item Đánh giá và so sánh ít nhất hai mô hình học sâu phù hợp với bài toán
+        nhận diện hình ảnh, từ đó lựa chọn mô hình có sự cân bằng giữa độ
+        chính xác và tốc độ xử lý.
+
+  \item Hướng tới độ chính xác nhận diện từ 80\% trở lên trên tập kiểm thử
+        và thời gian phản hồi không quá 3 giây trong điều kiện kiểm thử ổn
+        định.
+
+  \item Xây dựng chức năng gợi ý tối đa ba cách phối đồ phù hợp dựa trên loại
+        trang phục, màu sắc và phong cách, đồng thời hạn chế các kết quả bị
+        trùng lặp.
+
+  \item Xây dựng chức năng thử trang phục ảo ở mức cơ bản bằng cách đặt ảnh
+        quần áo có nền trong suốt lên ảnh người dùng và cho phép điều chỉnh
+        vị trí, kích thước và góc xoay.
+
+  \item Phát triển ứng dụng di động bằng Flutter, kết nối với hệ thống xử lý
+        trí tuệ nhân tạo thông qua API.
+
+  \item Xây dựng các chức năng hỗ trợ như đăng ký, đăng nhập, quản lý tủ đồ
+        cá nhân, lưu trang phục yêu thích và lưu kết quả phối đồ.
+\end{itemize}
+
+\section{Phạm vi và đối tượng}
+
+\subsection{Đối tượng nghiên cứu}
+
+Đối tượng nghiên cứu của đồ án gồm:
+
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item Các hình ảnh chứa một trang phục chính như áo thun, áo sơ mi, áo
+        khoác, quần dài, quần ngắn, váy hoặc đầm.
+
+  \item Các mô hình học sâu có khả năng phân loại hình ảnh quần áo và phù
+        hợp với hệ thống có tài nguyên tính toán giới hạn.
+
+  \item Các nguyên tắc phối hợp trang phục dựa trên loại quần áo, màu sắc
+        và phong cách cơ bản.
+
+  \item Phương pháp xác định vị trí cơ thể để đặt lớp ảnh trang phục lên ảnh
+        người dùng.
+
+  \item Quy trình phát triển ứng dụng di động bằng Flutter và kết nối ứng
+        dụng với dịch vụ xử lý trí tuệ nhân tạo.
+\end{itemize}
+
+\subsection{Phạm vi thực hiện}
+
+Trong phạm vi đồ án, hệ thống tập trung vào các chức năng sau:
+
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item Nhận ảnh quần áo từ camera hoặc thư viện ảnh của điện thoại.
+
+  \item Nhận diện một số loại quần áo phổ biến đã được xác định trong bộ dữ
+        liệu huấn luyện.
+
+  \item Trả về tên loại quần áo dự đoán và độ tin cậy của kết quả.
+
+  \item Gợi ý ba phương án phối đồ dựa trên các thuộc tính cơ bản của trang
+        phục và dữ liệu trong tủ đồ cá nhân.
+
+  \item Hỗ trợ thử trang phục ảo bằng kỹ thuật ghép ảnh hai chiều
+        \en{(2D overlay)}, không sử dụng mô hình sinh ảnh.
+
+  \item Cho phép người dùng điều chỉnh thủ công vị trí, kích thước và góc
+        xoay của trang phục khi thử đồ.
+
+  \item Lưu thông tin người dùng, hình ảnh quần áo, tủ đồ và các kết quả yêu
+        thích bằng Firebase.
+\end{itemize}
+
+Đồ án chưa tập trung vào việc nhận diện đồng thời nhiều loại trang phục
+trong một ảnh phức tạp, xác định thương hiệu, chất liệu hoặc kích cỡ chính
+xác của quần áo. Chức năng thử trang phục ảo chỉ mô phỏng bằng lớp ảnh hai
+chiều nên chưa thể tái tạo chính xác độ rủ, nếp gấp, ánh sáng hoặc sự thay đổi
+hình dạng của trang phục theo cơ thể người dùng.
+
+Ứng dụng được xây dựng chủ yếu để thử nghiệm trên thiết bị Android. Hệ thống
+chưa hướng tới triển khai thương mại, chưa tích hợp chức năng thanh toán và
+chưa thay thế hoàn toàn việc thử trang phục trực tiếp.
+
+\section{Bố cục báo cáo}
+
+Phần còn lại của báo cáo được tổ chức như sau. Chương~\ref{ch:coso} trình
+bày cơ sở lý thuyết về trí tuệ nhân tạo, thị giác máy tính, mô hình nhận diện
+ảnh và các công nghệ được sử dụng. Chương~\ref{ch:thietke} phân tích yêu cầu
+và thiết kế kiến trúc, dữ liệu, chức năng của hệ thống. Chương~\ref{ch:caidat}
+mô tả quá trình xây dựng mô hình AI, phát triển ứng dụng Flutter và tích hợp
+các thành phần. Chương~\ref{ch:ketqua} trình bày kết quả thực nghiệm, kiểm
+thử và đánh giá hệ thống. Cuối cùng, Chương~\ref{ch:ketluan} tổng kết những
+kết quả đã đạt được, nêu các hạn chế và đề xuất hướng phát triển trong tương
+lai.

@@ -1,0 +1,74 @@
+% ---------------------------------------------------------------------
+%  CHƯƠNG 6 — KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
+% ---------------------------------------------------------------------
+\chapter{Kết luận và hướng phát triển}
+\label{ch:ketluan}
+
+\begin{muctieu}
+Chương này tổng kết phạm vi giải pháp, nêu giới hạn thực nghiệm, rút ra bài
+học và đề xuất các hướng phát triển tiếp theo.
+\end{muctieu}
+
+\section{Kết luận}
+
+Đồ án ``Xây dựng hệ thống gợi ý phối đồ'' xây dựng ứng dụng Android hỗ trợ
+phân tích ảnh trang phục, gợi ý theo hồ sơ và bối cảnh, hỏi đáp, quản lý hồ sơ
+cơ thể và thử trang phục theo tư thế camera. Giải pháp gồm Flutter, FastAPI,
+YOLO, Gemini, MediaPipe Pose, Open-Meteo và Firebase. Firestore Rules đã dành
+đường dẫn tủ đồ riêng cho từng UID, nhưng mã Flutter hiện chưa có luồng sử
+dụng đường dẫn này và cũng chưa triển khai danh sách yêu thích; vì vậy hai
+chức năng không được tính là kết quả đã hoàn thành.
+
+Đối với thành phần nhận diện, đồ án đã huấn luyện checkpoint YOLO26n theo ba
+vòng V1--V3 trên taxonomy 21 lớp. Phiên bản V3 kết hợp dữ liệu Roboflow và
+DeepFashion, đạt kết quả validation tốt nhất mAP@0,5:0,95 là 36,69\% trong
+lần chạy full; năm epoch fine-tune cuối đạt precision 55,18\%, recall
+49,19\%, mAP@0,5 là 49,53\% và mAP@0,5:0,95 là 36,10\%. Các con số này xác
+nhận quy trình huấn luyện hoạt động nhưng cũng cho thấy chất lượng chưa đủ để
+kết luận đạt mục tiêu 80\% ban đầu.
+
+Backend mặc định dùng \code{backend/models/best.pt}. Kiểm thử tự động ghi
+nhận 104/104 test backend đạt; Flutter có 139 test đạt và 6 test widget lỗi.
+Do chưa đo trên thiết bị Android thật, báo cáo chưa kết luận về mục tiêu thời
+gian phản hồi không quá ba giây.
+
+\section{Bài học rút ra}
+
+Đề tài cho thấy chất lượng của một hệ thống trí tuệ nhân tạo không chỉ phụ
+thuộc vào kiến trúc mô hình mà còn phụ thuộc dữ liệu, cách chia tập, quy
+trình tiền xử lý và khả năng tích hợp với ứng dụng. Một mô hình có độ chính
+xác cao nhưng phản hồi chậm hoặc khó triển khai vẫn có thể không phù hợp với
+thiết bị di động.
+
+Việc tách ứng dụng, API, dữ liệu và mô hình thành các thành phần rõ trách
+nhiệm giúp kiểm thử và thay thế từng phần dễ hơn. Đồng thời, chức năng thử
+đồ 2D minh hoạ giới hạn quan trọng của AI và xử lý ảnh: kết quả trực quan
+không đồng nghĩa với mô phỏng chính xác kích cỡ hay đặc tính vật lý của
+trang phục.
+
+Quá trình V3 cũng cho thấy dữ liệu cần được kiểm tra trước huấn luyện: một số
+nhãn cũ trộn định dạng detection và segmentation, vài hộp vượt miền chuẩn hoá
+và phân bố lớp chênh lệch lớn. Việc chia DeepFashion theo \code{item\_id}
+giúp tránh rò rỉ các góc chụp của cùng sản phẩm, nhưng ánh xạ giữa taxonomy
+DeepFashion và 21 lớp đích vẫn tạo ra nhiễu nhãn.
+
+\section{Hướng phát triển}
+
+Một số hướng phát triển trực tiếp từ các hạn chế ở
+Chương~\ref{ch:ketqua} gồm:
+\begin{itemize}[leftmargin=1.6em, itemsep=3pt]
+  \item mở rộng và cân bằng dữ liệu, bổ sung ảnh thực tế với nhiều nền, tư
+        thế và điều kiện ánh sáng;
+  \item nhận diện nhiều món đồ trong cùng ảnh và bổ sung thuộc tính như chất
+        liệu, hoạ tiết, mùa hoặc hoàn cảnh sử dụng;
+  \item cá nhân hoá gợi ý từ phản hồi, lịch sử lựa chọn và phong cách của
+        từng người dùng;
+  \item thay lớp ảnh 2D bằng phương pháp căn chỉnh theo tư thế hoặc mô hình
+        thử đồ sinh ảnh, đồng thời đánh giá rủi ro sai lệch hình ảnh;
+  \item hoàn thiện bảo mật, tối ưu thời gian phản hồi, bổ sung iOS và triển
+        khai dịch vụ trên hạ tầng có khả năng mở rộng.
+\end{itemize}
+
+Mỗi hướng phát triển cần có dữ liệu, tiêu chí đánh giá và kế hoạch kiểm thử
+riêng; không nên coi việc thay mô hình mạnh hơn là đủ để giải quyết mọi hạn
+chế của hệ thống.
