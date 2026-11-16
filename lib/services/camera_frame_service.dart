@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -66,24 +68,26 @@ Future<EncodedCameraFrame> encodeCameraFrame(
 }
 
 EncodedCameraFrame _encode(_RawFrame frame) {
+  const maxSide = 640;
+  final scale = math.min(1.0, maxSide / math.max(frame.width, frame.height));
+  final targetWidth = math.max(1, (frame.width * scale).round()).toInt();
+  final targetHeight = math.max(1, (frame.height * scale).round()).toInt();
+
   image_lib.Image image = switch (frame.format) {
-    _RawFormat.jpeg => _decodeJpeg(frame),
-    _RawFormat.bgra8888 => _decodeBgra(frame),
-    _RawFormat.nv21 => _decodeNv21(frame),
-    _RawFormat.yuv420 => _decodeYuv420(frame),
+    _RawFormat.jpeg => _resizeIfNeeded(
+      _decodeJpeg(frame),
+      targetWidth,
+      targetHeight,
+    ),
+    _RawFormat.bgra8888 => _decodeBgra(frame, targetWidth, targetHeight),
+    _RawFormat.nv21 => _decodeNv21(frame, targetWidth, targetHeight),
+    _RawFormat.yuv420 => _decodeYuv420(frame, targetWidth, targetHeight),
   };
   if (frame.rotationDegrees != 0) {
     image = image_lib.copyRotate(
       image,
       angle: frame.rotationDegrees.toDouble(),
     );
-  }
-
-  const maxSide = 640;
-  if (image.width > maxSide || image.height > maxSide) {
-    image = image.width >= image.height
-        ? image_lib.copyResize(image, width: maxSide)
-        : image_lib.copyResize(image, height: maxSide);
   }
   return EncodedCameraFrame(
     bytes: Uint8List.fromList(image_lib.encodeJpg(image, quality: 68)),
@@ -98,17 +102,27 @@ image_lib.Image _decodeJpeg(_RawFrame frame) {
   return image;
 }
 
-image_lib.Image _decodeBgra(_RawFrame frame) {
+image_lib.Image _decodeBgra(
+  _RawFrame frame,
+  int targetWidth,
+  int targetHeight,
+) {
   if (frame.planes.isEmpty) {
     throw const FormatException('Frame BGRA không có dữ liệu.');
   }
   final source = frame.planes.first;
   final rowStride = frame.bytesPerRow.first;
   final pixelStride = frame.bytesPerPixel.first;
-  final image = image_lib.Image(width: frame.width, height: frame.height);
-  for (var y = 0; y < frame.height; y++) {
-    for (var x = 0; x < frame.width; x++) {
-      final offset = y * rowStride + x * pixelStride;
+  final image = image_lib.Image(width: targetWidth, height: targetHeight);
+  for (var y = 0; y < targetHeight; y++) {
+    final sourceY = math
+        .min(frame.height - 1, y * frame.height ~/ targetHeight)
+        .toInt();
+    for (var x = 0; x < targetWidth; x++) {
+      final sourceX = math
+          .min(frame.width - 1, x * frame.width ~/ targetWidth)
+          .toInt();
+      final offset = sourceY * rowStride + sourceX * pixelStride;
       if (offset + 2 < source.length) {
         image.setPixelRgb(
           x,
@@ -123,19 +137,32 @@ image_lib.Image _decodeBgra(_RawFrame frame) {
   return image;
 }
 
-image_lib.Image _decodeYuv420(_RawFrame frame) {
-  if (frame.planes.length < 3) return _decodeNv21(frame);
+image_lib.Image _decodeYuv420(
+  _RawFrame frame,
+  int targetWidth,
+  int targetHeight,
+) {
+  if (frame.planes.length < 3) {
+    return _decodeNv21(frame, targetWidth, targetHeight);
+  }
   final yPlane = frame.planes[0];
   final uPlane = frame.planes[1];
   final vPlane = frame.planes[2];
   final yRowStride = frame.bytesPerRow[0];
   final uvRowStride = frame.bytesPerRow[1];
   final uvPixelStride = frame.bytesPerPixel[1];
-  final image = image_lib.Image(width: frame.width, height: frame.height);
-  for (var y = 0; y < frame.height; y++) {
-    for (var x = 0; x < frame.width; x++) {
-      final yIndex = y * yRowStride + x;
-      final uvIndex = (y ~/ 2) * uvRowStride + (x ~/ 2) * uvPixelStride;
+  final image = image_lib.Image(width: targetWidth, height: targetHeight);
+  for (var y = 0; y < targetHeight; y++) {
+    final sourceY = math
+        .min(frame.height - 1, y * frame.height ~/ targetHeight)
+        .toInt();
+    for (var x = 0; x < targetWidth; x++) {
+      final sourceX = math
+          .min(frame.width - 1, x * frame.width ~/ targetWidth)
+          .toInt();
+      final yIndex = sourceY * yRowStride + sourceX;
+      final uvIndex =
+          (sourceY ~/ 2) * uvRowStride + (sourceX ~/ 2) * uvPixelStride;
       if (yIndex < yPlane.length &&
           uvIndex < uPlane.length &&
           uvIndex < vPlane.length) {
@@ -153,7 +180,11 @@ image_lib.Image _decodeYuv420(_RawFrame frame) {
   return image;
 }
 
-image_lib.Image _decodeNv21(_RawFrame frame) {
+image_lib.Image _decodeNv21(
+  _RawFrame frame,
+  int targetWidth,
+  int targetHeight,
+) {
   if (frame.planes.isEmpty) {
     throw const FormatException('Frame NV21 không có dữ liệu.');
   }
@@ -163,11 +194,18 @@ image_lib.Image _decodeNv21(_RawFrame frame) {
   final separateUvPlane = frame.planes.length > 1;
   final uvStart = separateUvPlane ? 0 : yRowStride * frame.height;
   final uvRowStride = separateUvPlane ? frame.bytesPerRow[1] : yRowStride;
-  final image = image_lib.Image(width: frame.width, height: frame.height);
-  for (var y = 0; y < frame.height; y++) {
-    for (var x = 0; x < frame.width; x++) {
-      final yIndex = y * yRowStride + x;
-      final uvIndex = uvStart + (y ~/ 2) * uvRowStride + (x ~/ 2) * 2;
+  final image = image_lib.Image(width: targetWidth, height: targetHeight);
+  for (var y = 0; y < targetHeight; y++) {
+    final sourceY = math
+        .min(frame.height - 1, y * frame.height ~/ targetHeight)
+        .toInt();
+    for (var x = 0; x < targetWidth; x++) {
+      final sourceX = math
+          .min(frame.width - 1, x * frame.width ~/ targetWidth)
+          .toInt();
+      final yIndex = sourceY * yRowStride + sourceX;
+      final uvIndex =
+          uvStart + (sourceY ~/ 2) * uvRowStride + (sourceX ~/ 2) * 2;
       if (yIndex < yPlane.length && uvIndex + 1 < uvPlane.length) {
         _setYuvPixel(
           image,
@@ -181,6 +219,15 @@ image_lib.Image _decodeNv21(_RawFrame frame) {
     }
   }
   return image;
+}
+
+image_lib.Image _resizeIfNeeded(
+  image_lib.Image image,
+  int targetWidth,
+  int targetHeight,
+) {
+  if (image.width == targetWidth && image.height == targetHeight) return image;
+  return image_lib.copyResize(image, width: targetWidth, height: targetHeight);
 }
 
 void _setYuvPixel(

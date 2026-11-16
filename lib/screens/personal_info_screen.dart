@@ -314,7 +314,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     final color = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông tin cá nhân'),
+        title: const Text('Tài khoản & hồ sơ'),
         actions: <Widget>[
           if (widget.onSignOut != null)
             IconButton(
@@ -366,7 +366,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  widget.accountName,
+                                  'Chào ${widget.accountName}',
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 Text(
@@ -388,7 +388,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                           leading: Icon(Icons.lock_outline),
                           title: Text('Mật khẩu'),
                           subtitle: Text(
-                            '••••••••  ·  Không thể xem mật khẩu cũ',
+                            'Đổi mật khẩu bất cứ lúc nào bạn muốn.',
                           ),
                         ),
                         Padding(
@@ -411,7 +411,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          'Hồ sơ cơ thể',
+                          'Hồ sơ của bạn',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -425,7 +425,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Lưu trên Firebase theo tài khoản này. Chọn một hồ sơ để dùng khi chụp ảnh hoặc quay video.',
+                    'Tạo nhiều hồ sơ để đổi nhanh giữa các số đo khác nhau.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
@@ -434,7 +434,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                       child: Padding(
                         padding: EdgeInsets.all(20),
                         child: Text(
-                          'Chưa có hồ sơ. Hãy thêm chiều cao và cân nặng của bạn.',
+                          'Tạo hồ sơ đầu tiên với tên, chiều cao, cân nặng và giới tính.',
                         ),
                       ),
                     ),

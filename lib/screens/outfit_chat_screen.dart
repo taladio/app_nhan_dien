@@ -258,8 +258,10 @@ class _OutfitChatScreenState extends State<OutfitChatScreen>
                 children: <Widget>[
                   Text(
                     widget.contextData.items.isEmpty
-                        ? 'Bạn có thể hỏi phối đồ ngay cả khi chưa chụp ảnh.'
-                        : 'Hỏi tiếp về bộ đồ YOLO vừa nhận diện; thời tiết chỉ được dùng khi có dữ liệu.',
+                        ? 'Chưa cần chụp ảnh đâu — cứ hỏi mình hôm nay nên mặc gì nhé.'
+                        : 'Cứ hỏi mình cách phối thêm với bộ đồ bạn vừa chụp nhé.',
+                    style: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 12),
                   if (_turns.isEmpty && !_restoring && !_restoreFailed)
@@ -277,25 +279,43 @@ class _OutfitChatScreenState extends State<OutfitChatScreen>
                           ),
                       ],
                     ),
+                  if (_turns.isEmpty && !_restoring)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 26),
+                      child: Column(
+                        children: <Widget>[
+                          Container(
+                            padding: const EdgeInsets.all(17),
+                            decoration: BoxDecoration(
+                              color: scheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(21),
+                            ),
+                            child: Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 33,
+                              color: scheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Mình có thể giúp bạn chọn đồ',
+                            style: Theme.of(context).textTheme.titleMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Hỏi điều bạn đang băn khoăn nhé.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
                   for (final turn in <GeminiChatTurn>[
                     ..._turns,
                     if (_pendingMessage != null)
                       GeminiChatTurn(role: 'user', content: _pendingMessage!),
                   ])
-                    Align(
-                      alignment: turn.role == 'user'
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Card(
-                        color: turn.role == 'user'
-                            ? scheme.primaryContainer
-                            : scheme.surfaceContainerHighest,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(turn.content),
-                        ),
-                      ),
-                    ),
+                    _messageBubble(context, turn),
                   if (_loading) const LinearProgressIndicator(),
                   if (_error != null) ...<Widget>[
                     Text(_error!, style: TextStyle(color: scheme.error)),
@@ -324,9 +344,17 @@ class _OutfitChatScreenState extends State<OutfitChatScreen>
                       minLines: 1,
                       maxLines: 3,
                       decoration: const InputDecoration(
-                        hintText: 'Ví dụ: Nếu trời mưa thì thay giày nào?',
-                        border: OutlineInputBorder(),
+                        hintText: 'Bạn muốn hỏi điều gì?',
+                        prefixIcon: Icon(Icons.edit_outlined),
                       ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      buildCounter: (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        required maxLength,
+                      }) => null,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -343,6 +371,51 @@ class _OutfitChatScreenState extends State<OutfitChatScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _messageBubble(BuildContext context, GeminiChatTurn turn) {
+    final isUser = turn.role == 'user';
+    final scheme = Theme.of(context).colorScheme;
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * .76,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        decoration: BoxDecoration(
+          color: isUser ? scheme.primaryContainer : Colors.white,
+          border: isUser ? null : Border.all(color: scheme.outlineVariant),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(19),
+            topRight: const Radius.circular(19),
+            bottomLeft: Radius.circular(isUser ? 19 : 6),
+            bottomRight: Radius.circular(isUser ? 6 : 19),
+          ),
+        ),
+        child: Text(turn.content),
+      ),
+    );
+    if (isUser) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Align(alignment: Alignment.centerRight, child: bubble),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: <Widget>[
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: scheme.primaryContainer,
+            child: Icon(Icons.auto_awesome, size: 16, color: scheme.primary),
+          ),
+          const SizedBox(width: 8),
+          Flexible(child: bubble),
+        ],
       ),
     );
   }

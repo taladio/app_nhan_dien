@@ -390,34 +390,55 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
           children: <Widget>[
-            Card(
-              color: scheme.primaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Icon(
-                      Icons.auto_awesome_outlined,
-                      color: scheme.onPrimaryContainer,
-                      size: 30,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Một bộ đồ hợp với hôm nay',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Gemini tạo một bộ đồ mới từ hồ sơ, thời tiết, phong cách và hoàn cảnh; không sử dụng ảnh đã chụp.',
-                    ),
-                  ],
+            Container(
+              padding: const EdgeInsets.all(19),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFE7F1E8), Color(0xFFF7EFE5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .8),
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: Icon(
+                      Icons.checkroom_outlined,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          'Hôm nay mình mặc gì nhỉ?',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Chọn hồ sơ, thời tiết và dịp của bạn. Mình sẽ chọn một bộ đồ phù hợp.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'Nguồn bối cảnh',
+              'Thời tiết hôm nay',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -456,19 +477,19 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
               icon: const Icon(Icons.checkroom_outlined),
               label: Padding(
                 padding: EdgeInsets.symmetric(vertical: 13),
-                child: Text('Gợi ý phối đồ bằng AI'),
+                child: Text('Gợi ý cho tôi'),
               ),
             ),
             if (_loadingAdvice) ...<Widget>[
               const SizedBox(height: 12),
               const LinearProgressIndicator(),
-              const Text('Gemini đang tạo gợi ý phối đồ...'),
+              const Text('Mình đang chọn bộ đồ hợp với bạn...'),
             ],
             if (_mode == SuggestionMode.currentWeather && _weather == null)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
-                  'Chưa có dữ liệu thời tiết; vẫn có thể nhận tư vấn từ hồ sơ và bối cảnh đã nhập.',
+                  'Chưa có thời tiết. Mình vẫn có thể gợi ý dựa trên hồ sơ và những gì bạn chọn.',
                 ),
               ),
             if (_adviceError != null) ...<Widget>[
@@ -524,7 +545,7 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              'Hồ sơ cơ thể',
+              'Hồ sơ của bạn',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 10),
@@ -532,7 +553,7 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
               const LinearProgressIndicator()
             else if (selected == null)
               const Text(
-                'Chưa có hồ sơ. Hãy thêm trong trang Thông tin cá nhân.',
+                'Thêm chiều cao, cân nặng và giới tính để gợi ý vừa với bạn hơn.',
               )
             else ...<Widget>[
               DropdownButtonFormField<String>(
@@ -770,7 +791,7 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Dữ liệu thời tiết: Open-Meteo',
+              'Thời tiết được cung cấp bởi Open-Meteo',
               style: TextStyle(fontSize: 12),
             ),
           ],
@@ -786,7 +807,7 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Gợi ý từ Gemini',
+            'Bộ đồ dành cho bạn',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -809,7 +830,9 @@ class _OutfitSuggestionScreenState extends State<OutfitSuggestionScreen> {
             ),
           if (_aiContext?.weather == null) ...<Widget>[
             const SizedBox(height: 8),
-            const Text('Chưa có dữ liệu thời tiết cho gợi ý này.'),
+            const Text(
+              'Chưa lấy được thời tiết. Gợi ý này dựa trên thông tin bạn đã chọn.',
+            ),
           ],
           const SizedBox(height: 12),
           OutlinedButton.icon(

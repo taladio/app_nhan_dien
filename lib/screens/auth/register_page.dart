@@ -81,7 +81,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return AuthPageShell(
       title: 'Tạo tài khoản',
-      subtitle: 'Lưu hồ sơ của bạn và bắt đầu khám phá trang phục cùng AI.',
+      subtitle: 'Tạo tài khoản để lưu hồ sơ và nhận gợi ý riêng cho mình.',
       icon: Icons.person_add_alt_1_outlined,
       child: AutofillGroup(
         child: Form(

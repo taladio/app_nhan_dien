@@ -4,7 +4,7 @@ abstract final class ApiConfig {
   // Đổi mạng: sửa IP tại đây, lưu, Stop rồi Run lại main.dart trong Android Studio.
   // Backend tự chạy trước app; luôn nhận kết nối ở 0.0.0.0:8000.
   // API_BASE_URL chỉ ghi đè giá trị này khi chủ động truyền --dart-define.
-  static const String localWifiBaseUrl = 'http://172.16.15.143:8000';
+  static const String localWifiBaseUrl = 'http://192.168.1.25:8000';
 
   static const String _environmentBaseUrl = String.fromEnvironment(
     'API_BASE_URL',

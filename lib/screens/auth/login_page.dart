@@ -63,53 +63,11 @@ class _LoginPageState extends State<LoginPage> {
     if (_isSubmitting) {
       return;
     }
-    final emailController = TextEditingController(
-      text: _emailController.text.trim(),
-    );
-    final resetFormKey = GlobalKey<FormState>();
     final email = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Đặt lại mật khẩu'),
-          content: Form(
-            key: resetFormKey,
-            child: TextFormField(
-              controller: emailController,
-              autofocus: true,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.done,
-              autofillHints: const <String>[AutofillHints.email],
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
-              ),
-              validator: validateEmail,
-              onFieldSubmitted: (_) {
-                if (resetFormKey.currentState!.validate()) {
-                  Navigator.of(dialogContext).pop(emailController.text.trim());
-                }
-              },
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (resetFormKey.currentState!.validate()) {
-                  Navigator.of(dialogContext).pop(emailController.text.trim());
-                }
-              },
-              child: const Text('Gửi email'),
-            ),
-          ],
-        );
-      },
+      builder: (_) =>
+          _PasswordResetDialog(initialEmail: _emailController.text.trim()),
     );
-    emailController.dispose();
     if (!mounted || email == null) {
       return;
     }
@@ -150,8 +108,8 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return AuthPageShell(
-      title: 'Chào mừng trở lại',
-      subtitle: 'Đăng nhập để tiếp tục nhận diện trang phục cùng AI Fashion.',
+      title: 'Rất vui gặp lại bạn',
+      subtitle: 'Đăng nhập để xem hồ sơ và tiếp tục phối đồ.',
       child: AutofillGroup(
         child: Form(
           key: _formKey,
@@ -237,6 +195,62 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PasswordResetDialog extends StatefulWidget {
+  const _PasswordResetDialog({required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  State<_PasswordResetDialog> createState() => _PasswordResetDialogState();
+}
+
+class _PasswordResetDialogState extends State<_PasswordResetDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late String _email;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = widget.initialEmail;
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    Navigator.of(context).pop(_email.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Đặt lại mật khẩu'),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          initialValue: widget.initialEmail,
+          onChanged: (value) => _email = value,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.done,
+          autofillHints: const <String>[AutofillHints.email],
+          decoration: const InputDecoration(
+            labelText: 'Email',
+            prefixIcon: Icon(Icons.email_outlined),
+          ),
+          validator: validateEmail,
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Gửi email')),
+      ],
     );
   }
 }

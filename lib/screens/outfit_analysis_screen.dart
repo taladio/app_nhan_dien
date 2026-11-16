@@ -569,20 +569,22 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
     final result = _result;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Phân tích trang phục AI'),
+        title: const Text('Phân tích'),
         actions: <Widget>[
           IconButton(
             tooltip: 'Nhận diện realtime',
             onPressed: _isLoading ? null : _openRealtime,
             icon: const Icon(Icons.videocam_outlined),
           ),
-          if (widget.profileStore != null && widget.onChangePassword != null)
+          if (widget.onPersonalRequested == null &&
+              widget.profileStore != null &&
+              widget.onChangePassword != null)
             IconButton(
               tooltip: 'Thông tin cá nhân',
               onPressed: _isLoading ? null : _openPersonalInfo,
               icon: const Icon(Icons.account_circle_outlined),
             ),
-          if (widget.onSignOut != null)
+          if (widget.onPersonalRequested == null && widget.onSignOut != null)
             IconButton(
               tooltip: 'Đăng xuất',
               onPressed: _isLoading ? null : widget.onSignOut,
@@ -601,6 +603,28 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Mình cùng chọn một bộ thật ưng ý nhé',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Chụp hoặc chọn ảnh để xem bộ đồ đang mặc và tìm cách phối thêm.',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
                     if (image == null)
                       const _ImagePlaceholder()
                     else
@@ -609,42 +633,52 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
                         response: result?.asDetectionResponse(),
                       ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 12,
-                      runSpacing: 8,
+                    Row(
                       children: <Widget>[
-                        if (widget.profileStore != null)
-                          FilledButton.tonalIcon(
-                            key: const Key('outfit_suggestion_button'),
-                            onPressed: _isLoading ? null : _openSuggestions,
-                            icon: const Icon(Icons.auto_awesome_outlined),
-                            label: const Text('Gợi ý phối đồ'),
+                        Expanded(
+                          child: FilledButton.icon(
+                            key: const Key('camera_button'),
+                            onPressed: _isLoading
+                                ? null
+                                : () => _selectImage(ImageSource.camera),
+                            icon: const Icon(Icons.photo_camera_outlined),
+                            label: const Text('Chụp ảnh'),
                           ),
-                        FilledButton.tonalIcon(
-                          key: const Key('virtual_try_on_button'),
-                          onPressed: _isLoading ? null : _openTryOn,
-                          icon: const Icon(Icons.checkroom),
-                          label: const Text('Thử đồ ảo'),
                         ),
-                        OutlinedButton.icon(
-                          key: const Key('camera_button'),
-                          onPressed: _isLoading
-                              ? null
-                              : () => _selectImage(ImageSource.camera),
-                          icon: const Icon(Icons.photo_camera_outlined),
-                          label: const Text('Chụp ảnh'),
-                        ),
-                        OutlinedButton.icon(
-                          key: const Key('gallery_button'),
-                          onPressed: _isLoading
-                              ? null
-                              : () => _selectImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('Chọn từ thư viện'),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            key: const Key('gallery_button'),
+                            onPressed: _isLoading
+                                ? null
+                                : () => _selectImage(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Chọn ảnh'),
+                          ),
                         ),
                       ],
                     ),
+                    if (widget.profileStore != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          OutlinedButton.icon(
+                            key: const Key('outfit_suggestion_button'),
+                            onPressed: _isLoading ? null : _openSuggestions,
+                            icon: const Icon(Icons.auto_awesome_outlined),
+                            label: const Text('Gợi ý cho tôi'),
+                          ),
+                          OutlinedButton.icon(
+                            key: const Key('virtual_try_on_button'),
+                            onPressed: _isLoading ? null : _openTryOn,
+                            icon: const Icon(Icons.checkroom_outlined),
+                            label: const Text('Thử đồ'),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     _buildProfileCard(context),
                     const SizedBox(height: 12),
@@ -657,7 +691,7 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
-                              'Ngưỡng nhận diện: ${_confidence.toStringAsFixed(2)}',
+                              'Độ nhạy nhận diện · ${(_confidence * 100).round()}%',
                             ),
                             Slider(
                               value: _confidence,
@@ -717,21 +751,23 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                'Hồ sơ cơ thể',
+                'Ai sẽ mặc bộ đồ này?',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               if (_profilesLoading)
                 const LinearProgressIndicator()
               else if (selected == null)
-                const Text('Chưa có hồ sơ chiều cao/cân nặng.')
+                const Text(
+                  'Thêm chiều cao và cân nặng để nhận gợi ý riêng cho bạn.',
+                )
               else ...<Widget>[
                 DropdownButtonFormField<String>(
                   key: ValueKey<String>('profile_dropdown_${selected.id}'),
                   initialValue: selected.id,
                   isExpanded: true,
                   decoration: const InputDecoration(
-                    labelText: 'Chọn hồ sơ cho ảnh này',
+                    labelText: 'Chọn hồ sơ',
                     border: OutlineInputBorder(),
                   ),
                   items: _profiles.profiles
@@ -779,7 +815,7 @@ class _OutfitAnalysisScreenState extends State<OutfitAnalysisScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              'Thông tin chung',
+              'Thông tin của bạn',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
@@ -1074,17 +1110,36 @@ class _ImagePlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('image_placeholder'),
-      height: 260,
+      height: 226,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFFEAF1EB),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          Icon(Icons.add_a_photo_outlined, size: 52),
-          SizedBox(height: 12),
-          Text('Chụp hoặc chọn ảnh trang phục toàn thân'),
+          CircleAvatar(
+            radius: 37,
+            backgroundColor: Color(0xFFD6E8DC),
+            child: Icon(
+              Icons.checkroom_outlined,
+              size: 38,
+              color: Color(0xFF39745D),
+            ),
+          ),
+          SizedBox(height: 14),
+          Text(
+            'Bộ đồ của bạn',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          SizedBox(height: 4),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: Text(
+              'Chụp ảnh rõ trang phục hoặc chọn ảnh sẵn có',
+              textAlign: TextAlign.center,
+            ),
+          ),
         ],
       ),
     );
